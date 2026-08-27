@@ -50,6 +50,7 @@ const createSchema = z.object({
   endsAt: z.string().min(8),
   prizeCostClp: z.number().int().positive().max(100_000_000),
   opsCostClp: z.number().int().nonnegative().max(100_000_000).optional(),
+  ticketGoal: z.number().int().positive().max(10_000_000),
   liveStreamUrl: z
     .string()
     .max(500)
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
         endsAt: body.endsAt,
         prizeCostClp: body.prizeCostClp,
         opsCostClp: body.opsCostClp ?? 0,
+        ticketGoal: body.ticketGoal,
         liveStreamUrl: body.liveStreamUrl ?? "",
       },
       stats,

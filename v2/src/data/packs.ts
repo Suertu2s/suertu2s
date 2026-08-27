@@ -39,6 +39,11 @@ export const RAFFLE = {
   /** Compat: suma de DEFAULT_PRIZES (fuente de verdad: prizes en catalog store) */
   estimatedPrizeCostClp: DEFAULT_PRIZES.reduce((a, p) => a + p.costClp, 0),
   estimatedOpsCostClp: 400_000,
+  /**
+   * Meta de tickets a vender en este ciclo (Analítica).
+   * Se configura al crear el sorteo.
+   */
+  ticketGoal: 1000,
   /** URL del live (YouTube, Twitch, etc.). Vacío = sin transmisión configurada. */
   liveStreamUrl: "",
   /** open = sorteo activo; closed = cerrado (puede anunciarse ganador). */

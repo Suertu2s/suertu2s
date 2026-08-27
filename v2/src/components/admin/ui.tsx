@@ -110,13 +110,67 @@ export function exportCsv(filename: string, rows: string[][]) {
   const csv = rows
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
     .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  // BOM para que Excel abra bien acentos en CSV
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Exporta filas limpias a .xlsx (Excel). */
+export async function exportXlsx(filename: string, rows: string[][]) {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Ancho de columna aproximado según contenido
+  const colCount = Math.max(0, ...rows.map((r) => r.length));
+  ws["!cols"] = Array.from({ length: colCount }, (_, i) => {
+    let max = 10;
+    for (const row of rows) {
+      const cell = row[i];
+      if (cell == null) continue;
+      max = Math.max(max, Math.min(48, String(cell).length + 2));
+    }
+    return { wch: max };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Datos");
+  const name = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
+  XLSX.writeFile(wb, name);
+}
+
+export function ExportButtons({
+  filenameBase,
+  rows,
+}: {
+  /** Nombre sin extensión, ej. pedidos_2026-01-01_2026-01-31 */
+  filenameBase: string;
+  rows: string[][];
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => exportCsv(`${filenameBase}.csv`, rows)}
+        className="text-xs text-black bg-brand-gold font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
+      >
+        Exportar CSV
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void exportXlsx(`${filenameBase}.xlsx`, rows);
+        }}
+        className="text-xs text-black bg-brand-greenBright font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
+      >
+        Exportar Excel
+      </button>
+    </div>
+  );
 }
 
 export function Field({

@@ -9,6 +9,8 @@ type Props = {
   nameQuery: string;
   onCodeChange: (value: string) => void;
   onNameChange: (value: string) => void;
+  /** Código capturado por QR / ?ref= — no se puede borrar ni editar. */
+  locked?: boolean;
 };
 
 function MegaphoneIcon() {
@@ -48,11 +50,34 @@ function SearchIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="5"
+        y="11"
+        width="14"
+        height="10"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M8 11V8a4 4 0 0 1 8 0v3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function ReferralBox({
   code,
   nameQuery,
   onCodeChange,
   onNameChange,
+  locked = false,
 }: Props) {
   const [mode, setMode] = useState<Mode>("code");
 
@@ -70,67 +95,99 @@ export function ReferralBox({
           <span className="mr-1.5" aria-hidden>
             💛
           </span>
-          ¿Te refirió un embajador o vendedor?
+          {locked
+            ? "Te refirió un embajador"
+            : "¿Te refirió un embajador o vendedor?"}
         </p>
         <span
-          className="shrink-0 rounded px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em]"
+          className="shrink-0 inline-flex items-center gap-1 rounded px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em]"
           style={{
-            color: "#f7c64b",
+            color: locked ? "#36f073" : "#f7c64b",
             backgroundColor: "rgba(0,0,0,0.45)",
-            border: "1px solid rgba(247, 198, 75, 0.35)",
+            border: locked
+              ? "1px solid rgba(54, 240, 115, 0.4)"
+              : "1px solid rgba(247, 198, 75, 0.35)",
           }}
         >
-          Opcional
+          {locked ? (
+            <>
+              <LockIcon />
+              Desde QR
+            </>
+          ) : (
+            "Opcional"
+          )}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-2.5">
-        <button
-          type="button"
-          onClick={() => setMode("code")}
-          className={`suertudos-ref-tab-btn inline-flex items-center gap-2 h-10 px-3.5 rounded-lg text-[13px] font-bold cursor-pointer transition-colors border ${
-            mode === "code"
-              ? "bg-[#f7c64b] text-black border-[#f7c64b]"
-              : "bg-[rgba(0,0,0,0.35)] text-white border-white/15 hover:border-white/30"
-          }`}
-        >
-          <MegaphoneIcon />
-          Por Código
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("name")}
-          className={`suertudos-ref-tab-btn inline-flex items-center gap-2 h-10 px-3.5 rounded-lg text-[13px] font-bold cursor-pointer transition-colors border ${
-            mode === "name"
-              ? "bg-[#f7c64b] text-black border-[#f7c64b]"
-              : "bg-[rgba(0,0,0,0.35)] text-white border-white/15 hover:border-white/30"
-          }`}
-        >
-          <SearchIcon />
-          Buscar por Nombre
-        </button>
-      </div>
+      {!locked && (
+        <div className="flex flex-wrap gap-2.5">
+          <button
+            type="button"
+            onClick={() => setMode("code")}
+            className={`suertudos-ref-tab-btn inline-flex items-center gap-2 h-10 px-3.5 rounded-lg text-[13px] font-bold cursor-pointer transition-colors border ${
+              mode === "code"
+                ? "bg-[#f7c64b] text-black border-[#f7c64b]"
+                : "bg-[rgba(0,0,0,0.35)] text-white border-white/15 hover:border-white/30"
+            }`}
+          >
+            <MegaphoneIcon />
+            Por Código
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("name")}
+            className={`suertudos-ref-tab-btn inline-flex items-center gap-2 h-10 px-3.5 rounded-lg text-[13px] font-bold cursor-pointer transition-colors border ${
+              mode === "name"
+                ? "bg-[#f7c64b] text-black border-[#f7c64b]"
+                : "bg-[rgba(0,0,0,0.35)] text-white border-white/15 hover:border-white/30"
+            }`}
+          >
+            <SearchIcon />
+            Buscar por Nombre
+          </button>
+        </div>
+      )}
 
-      {mode === "code" ? (
+      {locked || mode === "code" ? (
         <label className="block space-y-2">
           <span className="block text-[14px] text-white/90 font-normal">
-            Ingresa el código del embajador (ej: STJP48)
+            {locked
+              ? "Código del embajador (aplicado desde el QR)"
+              : "Ingresa el código del embajador (ej: STJP48)"}
           </span>
           <input
             id="suertudos_ref_code_input"
             type="text"
             value={code}
-            onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              if (locked) return;
+              onCodeChange(e.target.value.toUpperCase());
+            }}
+            readOnly={locked}
             placeholder="EJ: STJP48"
-            className="w-full h-12 rounded-xl px-4 text-[15px] text-white outline-none"
+            className={`w-full h-12 rounded-xl px-4 text-[15px] text-white outline-none ${
+              locked ? "cursor-not-allowed opacity-90" : ""
+            }`}
             style={{
-              backgroundColor: "rgba(0, 0, 0, 0.4)",
-              border: "1px solid rgba(255, 255, 255, 0.15)",
+              backgroundColor: locked
+                ? "rgba(54, 240, 115, 0.08)"
+                : "rgba(0, 0, 0, 0.4)",
+              border: locked
+                ? "1px solid rgba(54, 240, 115, 0.35)"
+                : "1px solid rgba(255, 255, 255, 0.15)",
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
               letterSpacing: "1.5px",
             }}
             autoComplete="off"
+            aria-readonly={locked || undefined}
           />
+          {locked && (
+            <p className="m-0 text-[12px] text-white/55">
+              Este código no se puede borrar porque llegaste con el QR del
+              afiliado.
+            </p>
+          )}
         </label>
       ) : (
         <label className="block space-y-2">

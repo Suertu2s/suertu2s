@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { formatClp } from "@/data/packs";
 import { useCatalog } from "@/hooks/useCatalog";
-import { readReferralCode } from "@/lib/referral/storage";
+import { isReferralCodeLocked, readReferralCode } from "@/lib/referral/storage";
 import type { PaymentProvider } from "@/lib/db/types";
 import { getCartSubtotal, getHydratedItems, useCart } from "@/store/cart";
 import { ReferralBox } from "./ReferralBox";
@@ -50,6 +50,7 @@ export function CheckoutView() {
   const [email, setEmail] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [referralName, setReferralName] = useState("");
+  const [referralLocked, setReferralLocked] = useState(false);
   const [provider, setProvider] = useState<PaymentProvider>("flow");
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -75,6 +76,7 @@ export function CheckoutView() {
     setMounted(true);
     const saved = readReferralCode();
     if (saved) setReferralCode(saved);
+    setReferralLocked(isReferralCodeLocked());
   }, []);
 
   useEffect(() => {
@@ -110,6 +112,8 @@ export function CheckoutView() {
     setLoading(true);
 
     const localName = email.split("@")[0] || "Participante";
+    const lockedCode = referralLocked ? readReferralCode() : null;
+    const codeToSend = (lockedCode || referralCode).trim() || undefined;
 
     try {
       const res = await fetch("/api/checkout", {
@@ -121,8 +125,10 @@ export function CheckoutView() {
           rut: "s/n",
           phone: "s/n",
           provider,
-          referralCode: referralCode.trim() || undefined,
-          referralName: referralName.trim() || undefined,
+          referralCode: codeToSend,
+          referralName: referralLocked
+            ? undefined
+            : referralName.trim() || undefined,
           items: hydrated.map((i) => ({
             packId: i.packId,
             quantity: i.quantity,
@@ -232,7 +238,11 @@ export function CheckoutView() {
           <ReferralBox
             code={referralCode}
             nameQuery={referralName}
-            onCodeChange={setReferralCode}
+            locked={referralLocked}
+            onCodeChange={(value) => {
+              if (referralLocked) return;
+              setReferralCode(value);
+            }}
             onNameChange={setReferralName}
           />
         </section>

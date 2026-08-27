@@ -5,7 +5,7 @@ import { formatClp } from "@/data/packs";
 import { useAdmin } from "@/components/admin/AdminContext";
 import {
   EmptyState,
-  exportCsv,
+  ExportButtons,
   Field,
   formatDate,
   Panel,
@@ -68,38 +68,33 @@ export default function AdminCustomersPage() {
             Agregados desde pedidos del período ({customers.length})
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            exportCsv(`clientes_${from}_${to}.csv`, [
-              [
-                "correo",
-                "nombre",
-                "rut",
-                "telefono",
-                "pedidos",
-                "pagados",
-                "gastado",
-                "ultimo",
-                "referidos",
-              ],
-              ...customers.map((c) => [
-                c.email,
-                c.full_name,
-                c.rut,
-                c.phone,
-                String(c.ordersCount),
-                String(c.paidCount),
-                String(c.totalSpentClp),
-                c.lastOrderAt || "",
-                c.referralCodes.join("|"),
-              ]),
-            ])
-          }
-          className="text-xs text-black bg-brand-gold font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
-        >
-          Exportar CSV
-        </button>
+        <ExportButtons
+          filenameBase={`clientes_${from}_${to}`}
+          rows={[
+            [
+              "correo",
+              "nombre",
+              "rut",
+              "telefono",
+              "pedidos",
+              "pagados",
+              "gastado",
+              "ultimo",
+              "referidos",
+            ],
+            ...customers.map((c) => [
+              c.email,
+              c.full_name,
+              c.rut,
+              c.phone,
+              String(c.ordersCount),
+              String(c.paidCount),
+              String(c.totalSpentClp),
+              c.lastOrderAt || "",
+              c.referralCodes.join("|"),
+            ]),
+          ]}
+        />
       </div>
 
       <div className="max-w-md">

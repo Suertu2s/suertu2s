@@ -29,6 +29,7 @@ type SettingsData = {
     ticketMax: number;
     estimatedPrizeCostClp: number;
     estimatedOpsCostClp: number;
+    ticketGoal?: number;
     liveStreamUrl?: string;
     raffleStatus?: "open" | "closed";
     winnerTicketCode?: string;
@@ -94,6 +95,7 @@ export default function AdminSettingsPage() {
     ticketMin: "",
     ticketMax: "",
     estimatedOpsCostClp: "",
+    ticketGoal: "",
     liveStreamUrl: "",
     raffleStatus: "open" as "open" | "closed",
     winnerTicketCode: "",
@@ -123,6 +125,7 @@ export default function AdminSettingsPage() {
           ticketMin: String(json.raffle.ticketMin),
           ticketMax: String(json.raffle.ticketMax),
           estimatedOpsCostClp: String(json.raffle.estimatedOpsCostClp),
+          ticketGoal: String(json.raffle.ticketGoal ?? 1000),
           liveStreamUrl: json.raffle.liveStreamUrl || "",
           raffleStatus:
             json.raffle.raffleStatus === "closed" ? "closed" : "open",
@@ -192,6 +195,7 @@ export default function AdminSettingsPage() {
             ticketMin: Number(raffleForm.ticketMin),
             ticketMax: Number(raffleForm.ticketMax),
             estimatedOpsCostClp: Number(raffleForm.estimatedOpsCostClp),
+            ticketGoal: Number(raffleForm.ticketGoal),
             liveStreamUrl: raffleForm.liveStreamUrl.trim(),
             raffleStatus: raffleForm.raffleStatus,
             winnerTicketCode: raffleForm.winnerTicketCode.trim().toUpperCase(),
@@ -483,13 +487,22 @@ export default function AdminSettingsPage() {
               type="number"
               required
             />
-            <p className="text-xs text-brand-muted m-0 self-end pb-2">
+            <Field
+              label="Meta de tickets (Analítica)"
+              value={raffleForm.ticketGoal}
+              onChange={(v) =>
+                setRaffleForm((f) => ({ ...f, ticketGoal: v }))
+              }
+              type="number"
+              required
+            />
+            <p className="text-xs text-brand-muted m-0 self-end pb-2 sm:col-span-2">
               Suma de premios:{" "}
               <span className="text-brand-gold font-semibold">
                 {prizesTotal.toLocaleString("es-CL")} CLP
               </span>
-              . En Analítica puedes ver la meta de un premio o de todos juntos
-              (+ estos gastos).
+              . La meta principal de Analítica es la cantidad de tickets; la
+              cobertura de costos (premios + gastos) queda como dato secundario.
             </p>
           </div>
         </div>

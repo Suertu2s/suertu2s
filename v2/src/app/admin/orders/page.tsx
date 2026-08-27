@@ -5,7 +5,7 @@ import { formatClp, getPackById } from "@/data/packs";
 import { useAdmin } from "@/components/admin/AdminContext";
 import {
   EmptyState,
-  exportCsv,
+  ExportButtons,
   Field,
   formatDate,
   Panel,
@@ -172,36 +172,31 @@ export default function AdminOrdersPage() {
             {orders.length} resultados en el rango
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            exportCsv(`pedidos_${from}_${to}.csv`, [
-              [
-                "id",
-                "fecha",
-                "cliente",
-                "correo",
-                "total",
-                "estado",
-                "pasarela",
-                "referido",
-              ],
-              ...orders.map((o) => [
-                o.id,
-                o.paid_at || o.created_at,
-                o.full_name,
-                o.email,
-                String(o.total_clp),
-                orderStatusLabel(o.status),
-                paymentProviderLabel(o.payment_provider),
-                o.referral_code || "",
-              ]),
-            ])
-          }
-          className="text-xs text-black bg-brand-gold font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
-        >
-          Exportar CSV
-        </button>
+        <ExportButtons
+          filenameBase={`pedidos_${from}_${to}`}
+          rows={[
+            [
+              "id",
+              "fecha",
+              "cliente",
+              "correo",
+              "total",
+              "estado",
+              "pasarela",
+              "referido",
+            ],
+            ...orders.map((o) => [
+              o.id,
+              o.paid_at || o.created_at,
+              o.full_name,
+              o.email,
+              String(o.total_clp),
+              orderStatusLabel(o.status),
+              paymentProviderLabel(o.payment_provider),
+              o.referral_code || "",
+            ]),
+          ]}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -237,9 +232,7 @@ export default function AdminOrdersPage() {
             className="w-full bg-brand-bg border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
           >
             <option value="all">Todas</option>
-            <option value="mock">Prueba</option>
-            <option value="webpay">Webpay</option>
-            <option value="mercadopago">Mercado Pago</option>
+            <option value="flow">Flow</option>
           </select>
         </label>
       </div>

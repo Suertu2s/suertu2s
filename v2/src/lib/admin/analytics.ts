@@ -13,6 +13,9 @@ import type {
   DbTicket,
 } from "@/lib/db/types";
 
+/** Meta mínima fija del negocio (siempre visible en Analítica). */
+export const MIN_TICKET_GOAL = 15_000;
+
 export function calcCommission(orderTotal: number, affiliate: DbAffiliate) {
   if (affiliate.commission_type === "fixed") {
     return Math.round(Number(affiliate.commission_value));
@@ -469,10 +472,8 @@ export function buildBusinessAnalytics(input: {
     0,
     Math.ceil((endsAt.getTime() - Date.now()) / 86400000),
   );
-  const projectedRevenue =
-    avgDailyRevenue > 0 ? avgDailyRevenue * (daySpan + daysLeft) : revenue;
   const projectedToEnd = revenue + avgDailyRevenue * daysLeft;
-  const onTrack = breakEvenClp > 0 ? projectedToEnd >= breakEvenClp : null;
+  const onTrackMoney = breakEvenClp > 0 ? projectedToEnd >= breakEvenClp : null;
 
   const ticketsInPeriod = tickets.filter((t) => {
     const order = orders.find((o) => o.id === t.order_id);
@@ -480,6 +481,63 @@ export function buildBusinessAnalytics(input: {
     const ts = new Date(order.paid_at || order.created_at).getTime();
     return ts >= from.getTime() && ts <= to.getTime();
   }).length;
+
+  const ticketGoal = Math.max(1, Math.round(Number(raffle.ticketGoal) || 1000));
+  const minTicketGoal = MIN_TICKET_GOAL;
+  const raffleIds = new Set(
+    [raffle.id, "a0000000-0000-4000-8000-000000000001"].filter(Boolean),
+  );
+  const isRaffleTicket = (raffleId: string) => raffleIds.has(raffleId);
+  const ticketsTowardGoal = tickets.filter((t) => {
+    if (!isRaffleTicket(t.raffle_id)) return false;
+    const order = orders.find((o) => o.id === t.order_id);
+    return order?.status === "paid";
+  }).length;
+  const ticketGoalPct = Math.min(
+    100,
+    Math.round((ticketsTowardGoal / ticketGoal) * 100),
+  );
+  const gapToTicketGoal = Math.max(0, ticketGoal - ticketsTowardGoal);
+  const minTicketGoalPct = Math.min(
+    100,
+    Math.round((ticketsTowardGoal / minTicketGoal) * 100),
+  );
+  const gapToMinTicketGoal = Math.max(0, minTicketGoal - ticketsTowardGoal);
+
+  let cumulativeTickets = tickets.filter((t) => {
+    if (!isRaffleTicket(t.raffle_id)) return false;
+    const order = orders.find((o) => o.id === t.order_id);
+    if (!order || order.status !== "paid") return false;
+    const ts = new Date(order.paid_at || order.created_at).getTime();
+    return ts < from.getTime();
+  }).length;
+  const ticketsByDay = new Map<string, number>();
+  for (const t of tickets) {
+    if (!isRaffleTicket(t.raffle_id)) continue;
+    const order = orders.find((o) => o.id === t.order_id);
+    if (!order || order.status !== "paid") continue;
+    const ts = new Date(order.paid_at || order.created_at);
+    if (ts.getTime() < from.getTime() || ts.getTime() > to.getTime()) continue;
+    const key = chileDateKey(ts);
+    ticketsByDay.set(key, (ticketsByDay.get(key) || 0) + 1);
+  }
+  const dailyTickets = kpis.series.map((s) => {
+    cumulativeTickets += ticketsByDay.get(s.date) || 0;
+    return {
+      date: s.date,
+      label: s.date.slice(5),
+      tickets: ticketsByDay.get(s.date) || 0,
+      cumulative: cumulativeTickets,
+    };
+  });
+
+  const avgDailyTickets = Number((ticketsInPeriod / daySpan).toFixed(2));
+  const projectedTicketsToEnd =
+    ticketsTowardGoal + Math.round(avgDailyTickets * daysLeft);
+  const onTrack =
+    ticketGoal > 0 ? projectedTicketsToEnd >= ticketGoal : null;
+  const onTrackMin =
+    minTicketGoal > 0 ? projectedTicketsToEnd >= minTicketGoal : null;
 
   const revenuePerTicket = ticketsInPeriod
     ? Math.round(revenue / ticketsInPeriod)
@@ -526,26 +584,62 @@ export function buildBusinessAnalytics(input: {
 
   const insights: Insight[] = [];
 
-  if (breakEvenClp > 0) {
-    if (breakEvenPct >= 100) {
+  if (ticketGoal > 0) {
+    if (ticketGoalPct >= 100) {
       insights.push({
         level: "positive",
-        title: `Ya alcanzaste la meta de ${goal.goalName}`,
-        detail: `Con lo vendido en este período ya cubres el costo estimado de ${goal.goalName} y los gastos (${formatInsightClp(breakEvenClp)}). Buena noticia.`,
+        title: "Ya alcanzaste la meta del ciclo",
+        detail: `Vendiste ${ticketsTowardGoal} tickets de la meta del ciclo (${ticketGoal}). Buena noticia.`,
       });
     } else if (onTrack) {
       insights.push({
         level: "neutral",
-        title: `Vas bien encaminado a cubrir ${goal.goalName}`,
-        detail: `Si sigues vendiendo cerca de ${formatInsightClp(avgDailyRevenue)} por día, al terminar el sorteo podrías llegar a ${formatInsightClp(projectedToEnd)}. En este período aún te faltan ${formatInsightClp(gapToBreakEven)} para esa meta.`,
+        title: "Vas bien encaminado a la meta del ciclo",
+        detail: `Llevas ${ticketsTowardGoal} de ${ticketGoal}. Si sigues cerca de ${avgDailyTickets} tickets por día, al cierre podrías llegar a ~${projectedTicketsToEnd}. Aún faltan ${gapToTicketGoal}.`,
       });
     } else {
       insights.push({
         level: "warning",
-        title: `Hay que vender más para cubrir ${goal.goalName}`,
-        detail: `Quedan ${daysLeft} días. Hoy vendes cerca de ${formatInsightClp(avgDailyRevenue)} al día. Si no sube, podrías terminar cerca de ${formatInsightClp(projectedToEnd)}, y la meta es ${formatInsightClp(breakEvenClp)}.`,
+        title: "Hay que vender más tickets para la meta del ciclo",
+        detail: `Quedan ${daysLeft} días. Hoy vendes cerca de ${avgDailyTickets} tickets al día (${ticketsTowardGoal} de ${ticketGoal}). Si no sube, podrías terminar cerca de ${projectedTicketsToEnd}.`,
       });
     }
+  }
+
+  if (minTicketGoal > 0) {
+    if (minTicketGoalPct >= 100) {
+      insights.push({
+        level: "positive",
+        title: "Ya alcanzaste la meta mínima de 15.000 tickets",
+        detail: `Vendiste ${ticketsTowardGoal} tickets. Superaste el piso de ${minTicketGoal.toLocaleString("es-CL")}.`,
+      });
+    } else if (onTrackMin) {
+      insights.push({
+        level: "neutral",
+        title: "Vas bien hacia la meta mínima de 15.000",
+        detail: `Llevas ${ticketsTowardGoal} de ${minTicketGoal.toLocaleString("es-CL")}. Si mantienes el ritmo, al cierre podrías llegar a ~${projectedTicketsToEnd}. Faltan ${gapToMinTicketGoal}.`,
+      });
+    } else {
+      insights.push({
+        level: "warning",
+        title: "Aún lejos de la meta mínima de 15.000 tickets",
+        detail: `Quedan ${daysLeft} días y llevas ${ticketsTowardGoal} de ${minTicketGoal.toLocaleString("es-CL")}. Al ritmo actual (~${avgDailyTickets}/día) podrías terminar cerca de ${projectedTicketsToEnd}.`,
+      });
+    }
+  }
+
+  if (breakEvenClp > 0 && breakEvenPct >= 100) {
+    insights.push({
+      level: "positive",
+      title: `La plata ya cubre ${goal.goalName}`,
+      detail: `Con lo cobrado en este período ya cubres el costo estimado de ${goal.goalName} y los gastos (${formatInsightClp(breakEvenClp)}).`,
+    });
+  } else if (breakEvenClp > 0 && onTrackMoney === false) {
+    insights.push({
+      level: "neutral",
+      title: `Aun así, mira el costo de ${goal.goalName}`,
+      detail: `Además de la meta de tickets, para cubrir costos te faltan ${formatInsightClp(gapToBreakEven)} en este período (meta plata: ${formatInsightClp(breakEvenClp)}).`,
+    });
   }
 
   if (conversionPct < 70 && inRange.length >= 5) {
@@ -617,6 +711,15 @@ export function buildBusinessAnalytics(input: {
       conversionPct,
       failRatePct,
       ticketsIssued: ticketsInPeriod,
+      ticketsTowardGoal,
+      ticketGoal,
+      ticketGoalPct,
+      gapToTicketGoal,
+      minTicketGoal,
+      minTicketGoalPct,
+      gapToMinTicketGoal,
+      avgDailyTickets,
+      projectedTicketsToEnd,
       revenuePerTicket,
       uniqueCustomers: customers.length,
       repeatCustomers,
@@ -636,9 +739,12 @@ export function buildBusinessAnalytics(input: {
       gapToBreakEvenClp: gapToBreakEven,
       projectedToEndClp: projectedToEnd,
       onTrack,
+      onTrackMin,
+      onTrackMoney,
       comparison: kpis.comparison,
     },
     daily,
+    dailyTickets,
     funnel,
     packMix,
     providerMix,
@@ -646,18 +752,26 @@ export function buildBusinessAnalytics(input: {
     affiliateRoi,
     insights,
     goal: {
+      type: "tickets" as const,
+      ticketGoal,
+      minTicketGoal,
+      label: `Meta del ciclo: ${ticketGoal.toLocaleString("es-CL")}`,
+      minLabel: `Meta mínima: ${minTicketGoal.toLocaleString("es-CL")}`,
+      name: `${ticketGoal.toLocaleString("es-CL")} tickets`,
       prizeId: goal.prizeId,
-      label: goal.goalLabel,
-      name: goal.goalName,
       prizeCostClp: prizeCost,
       opsCostClp: opsCost,
       breakEvenClp,
+      moneyLabel: goal.goalLabel,
+      moneyName: goal.goalName,
     },
     prizes: goal.prizes,
     raffle: {
       title: raffle.title,
       prizeName: raffle.prizeName,
       endsAt: raffle.endsAt,
+      ticketGoal,
+      minTicketGoal,
       estimatedPrizeCostClp: prizeCost,
       estimatedOpsCostClp: opsCost,
     },

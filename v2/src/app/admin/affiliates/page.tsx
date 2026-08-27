@@ -5,7 +5,7 @@ import { formatClp } from "@/data/packs";
 import { useAdmin } from "@/components/admin/AdminContext";
 import {
   EmptyState,
-  exportCsv,
+  ExportButtons,
   Field,
   formatDate,
   Panel,
@@ -167,38 +167,33 @@ export default function AdminAffiliatesPage() {
             Usos de códigos, comisiones devengadas, pagos y saldo a pagar.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            exportCsv(`afiliados_${from}_${to}.csv`, [
-              [
-                "codigo",
-                "nombre",
-                "usos",
-                "ventas",
-                "devengado",
-                "pagado",
-                "saldo",
-                "regla",
-              ],
-              ...stats.map((s) => [
-                s.affiliate.code,
-                s.affiliate.name,
-                String(s.uses),
-                String(s.salesClp),
-                String(s.commissionEarnedClp),
-                String(s.commissionPaidClp),
-                String(s.commissionBalanceClp),
-                s.affiliate.commission_type === "percent"
-                  ? `${s.affiliate.commission_value}%`
-                  : String(s.affiliate.commission_value),
-              ]),
-            ])
-          }
-          className="text-xs text-black bg-brand-gold font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
-        >
-          Exportar CSV
-        </button>
+        <ExportButtons
+          filenameBase={`afiliados_${from}_${to}`}
+          rows={[
+            [
+              "codigo",
+              "nombre",
+              "usos",
+              "ventas",
+              "devengado",
+              "pagado",
+              "saldo",
+              "regla",
+            ],
+            ...stats.map((s) => [
+              s.affiliate.code,
+              s.affiliate.name,
+              String(s.uses),
+              String(s.salesClp),
+              String(s.commissionEarnedClp),
+              String(s.commissionPaidClp),
+              String(s.commissionBalanceClp),
+              s.affiliate.commission_type === "percent"
+                ? `${s.affiliate.commission_value}%`
+                : String(s.affiliate.commission_value),
+            ]),
+          ]}
+        />
       </div>
 
       <form

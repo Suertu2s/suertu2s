@@ -138,6 +138,76 @@ export function CumulativeRevenueChart({
   );
 }
 
+export function CumulativeTicketsChart({
+  data,
+  ticketGoal,
+  minTicketGoal,
+  goalLabel = "Meta del ciclo",
+  minGoalLabel = "Meta mínima",
+}: {
+  data: Array<{ label: string; cumulative: number }>;
+  ticketGoal: number;
+  minTicketGoal?: number;
+  goalLabel?: string;
+  minGoalLabel?: string;
+}) {
+  const withGoal = data.map((d) => ({
+    ...d,
+    ticketGoal,
+    ...(minTicketGoal != null && minTicketGoal > 0
+      ? { minTicketGoal }
+      : {}),
+  }));
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <AreaChart data={withGoal}>
+        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+        <XAxis dataKey="label" tick={{ fill: "#d8c28a", fontSize: 11 }} />
+        <YAxis tick={{ fill: "#d8c28a", fontSize: 11 }} allowDecimals={false} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(value, name) => {
+            const n = Number(value) || 0;
+            if (name === "cumulative") return [n, "Tickets vendidos"];
+            if (name === "minTicketGoal" || name === minGoalLabel) {
+              return [n, minGoalLabel];
+            }
+            return [n, goalLabel];
+          }}
+        />
+        <Area
+          type="monotone"
+          dataKey="cumulative"
+          name="Tickets vendidos"
+          stroke="#36f073"
+          fill="rgba(54,240,115,0.2)"
+          strokeWidth={2}
+        />
+        <Area
+          type="monotone"
+          dataKey="ticketGoal"
+          name={goalLabel}
+          stroke="#f7c64b"
+          fill="transparent"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+        />
+        {minTicketGoal != null && minTicketGoal > 0 ? (
+          <Area
+            type="monotone"
+            dataKey="minTicketGoal"
+            name={minGoalLabel}
+            stroke="#7eb6ff"
+            fill="transparent"
+            strokeWidth={2}
+            strokeDasharray="2 4"
+          />
+        ) : null}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function SimpleBarChart({
   data,
   dataKey,

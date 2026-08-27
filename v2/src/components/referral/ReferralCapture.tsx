@@ -13,7 +13,7 @@ export function ReferralCapture() {
 
   useEffect(() => {
     const ref = normalizeReferralCode(params.get("ref"));
-    if (ref) saveReferralCode(ref);
+    if (ref) saveReferralCode(ref, { locked: true });
   }, [params]);
 
   return null;

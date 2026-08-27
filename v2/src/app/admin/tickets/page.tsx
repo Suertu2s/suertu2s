@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAdmin } from "@/components/admin/AdminContext";
 import {
   EmptyState,
-  exportCsv,
+  ExportButtons,
   Field,
   formatDate,
   Panel,
@@ -70,34 +70,29 @@ export default function AdminTicketsPage() {
             {tickets.length} códigos emitidos en el período
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            exportCsv(`codigos_${from}_${to}.csv`, [
-              [
-                "codigo",
-                "sufijo",
-                "correo",
-                "nombre",
-                "pedido_id",
-                "estado",
-                "fecha",
-              ],
-              ...tickets.map((t) => [
-                t.code || String(t.number).padStart(5, "0"),
-                String(t.number).padStart(5, "0"),
-                t.email,
-                t.full_name || "",
-                t.order_id,
-                orderStatusLabel(t.order_status),
-                t.paid_at || t.created_at,
-              ]),
-            ])
-          }
-          className="text-xs text-black bg-brand-gold font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
-        >
-          Exportar CSV
-        </button>
+        <ExportButtons
+          filenameBase={`codigos_${from}_${to}`}
+          rows={[
+            [
+              "codigo",
+              "sufijo",
+              "correo",
+              "nombre",
+              "pedido_id",
+              "estado",
+              "fecha",
+            ],
+            ...tickets.map((t) => [
+              t.code || String(t.number).padStart(5, "0"),
+              String(t.number).padStart(5, "0"),
+              t.email,
+              t.full_name || "",
+              t.order_id,
+              orderStatusLabel(t.order_status),
+              t.paid_at || t.created_at,
+            ]),
+          ]}
+        />
       </div>
 
       <div className="max-w-md">

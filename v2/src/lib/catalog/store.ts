@@ -46,6 +46,8 @@ export type RaffleSettings = {
   /** Compat: suma de costos de `prizes` */
   estimatedPrizeCostClp: number;
   estimatedOpsCostClp: number;
+  /** Meta de tickets a vender en este ciclo (configurada al crear el sorteo). */
+  ticketGoal: number;
   /** Link de transmisión en vivo del sorteo */
   liveStreamUrl: string;
   raffleStatus: "open" | "closed";
@@ -69,6 +71,8 @@ export type NewRaffleInput = {
   endsAt: string;
   prizeCostClp: number;
   opsCostClp?: number;
+  /** Cantidad de tickets que se quieren vender en este ciclo. */
+  ticketGoal: number;
   liveStreamUrl?: string;
 };
 
@@ -128,6 +132,17 @@ function ensureCatalogShape(data: CatalogStore): CatalogStore {
   }
   if (typeof data.raffle.winnerNote !== "string") {
     data.raffle.winnerNote = "";
+  }
+  if (
+    !Number.isFinite(Number(data.raffle.ticketGoal)) ||
+    Number(data.raffle.ticketGoal) < 1
+  ) {
+    data.raffle.ticketGoal = DEFAULT_RAFFLE.ticketGoal || 1000;
+  } else {
+    data.raffle.ticketGoal = Math.max(
+      1,
+      Math.round(Number(data.raffle.ticketGoal)),
+    );
   }
   if (!Array.isArray(data.packs) || data.packs.length === 0) {
     data.packs = DEFAULT_PACKS.map((p) => ({ ...p }));
@@ -201,6 +216,7 @@ function normalizeArchivedRaffle(raw: unknown): ArchivedRaffle | null {
       0,
       Math.round(Number(r.estimatedOpsCostClp ?? 0)),
     ),
+    ticketGoal: Math.max(1, Math.round(Number(r.ticketGoal ?? 1000))),
     liveStreamUrl: String(r.liveStreamUrl ?? "").trim(),
     raffleStatus: r.raffleStatus === "closed" ? "closed" : "open",
     winnerTicketCode: String(r.winnerTicketCode ?? "")
@@ -275,6 +291,10 @@ function mergePersisted(raw: unknown): CatalogStore {
       ticketMax: Number(r.ticketMax ?? base.raffle.ticketMax),
       estimatedOpsCostClp: Number(
         r.estimatedOpsCostClp ?? base.raffle.estimatedOpsCostClp,
+      ),
+      ticketGoal: Math.max(
+        1,
+        Math.round(Number(r.ticketGoal ?? base.raffle.ticketGoal ?? 1000)),
       ),
       liveStreamUrl: String(
         r.liveStreamUrl ?? base.raffle.liveStreamUrl ?? "",
@@ -551,6 +571,10 @@ export function createNewRaffle(
   }
   const prizeCost = Math.max(1, Math.round(Number(input.prizeCostClp ?? 0)));
   const opsCost = Math.max(0, Math.round(Number(input.opsCostClp ?? 0)));
+  const ticketGoal = Math.max(1, Math.round(Number(input.ticketGoal ?? 0)));
+  if (!Number.isFinite(ticketGoal) || ticketGoal < 1) {
+    throw new Error("La meta de tickets debe ser al menos 1");
+  }
 
   const current = s.raffle;
   s.raffleHistory.unshift({
@@ -570,6 +594,7 @@ export function createNewRaffle(
     ticketMax: 99999,
     estimatedPrizeCostClp: prizeCost,
     estimatedOpsCostClp: opsCost,
+    ticketGoal,
     liveStreamUrl: String(input.liveStreamUrl ?? "").trim(),
     raffleStatus: "open",
     winnerTicketCode: "",
@@ -703,6 +728,9 @@ export async function syncCatalogFromDb() {
       if (r.estimated_ops_cost_clp != null) {
         s.raffle.estimatedOpsCostClp = Number(r.estimated_ops_cost_clp);
       }
+      if (r.ticket_goal != null) {
+        s.raffle.ticketGoal = Math.max(1, Math.round(Number(r.ticket_goal)));
+      }
       if (Array.isArray(r.prizes) && r.prizes.length > 0) {
         const mappedPrizes: AnalysisPrize[] = [];
         for (const p of r.prizes) {
@@ -747,6 +775,7 @@ export async function syncCatalogFromDb() {
           ? sumPrizeCosts(r.prizes)
           : 0,
         estimatedOpsCostClp: Number(r.estimated_ops_cost_clp ?? 0),
+        ticketGoal: Math.max(1, Math.round(Number(r.ticket_goal ?? 1000))),
         liveStreamUrl: String(r.live_stream_url || ""),
         raffleStatus: "closed" as const,
         winnerTicketCode: String(r.winner_ticket_code || ""),
@@ -791,6 +820,7 @@ export async function persistRaffleToDb(raffle: RaffleSettings) {
         winner_name: raffle.winnerName || "",
         winner_note: raffle.winnerNote || "",
         estimated_ops_cost_clp: raffle.estimatedOpsCostClp ?? 400000,
+        ticket_goal: Math.max(1, Math.round(raffle.ticketGoal ?? 1000)),
         prizes: currentPrizes,
       })
       .eq("id", targetId);
@@ -890,6 +920,7 @@ export async function persistNewRaffleToDb(newRaffle: RaffleSettings) {
       status: "active",
       live_stream_url: newRaffle.liveStreamUrl || "",
       estimated_ops_cost_clp: newRaffle.estimatedOpsCostClp ?? 400000,
+      ticket_goal: Math.max(1, Math.round(newRaffle.ticketGoal ?? 1000)),
       prizes: currentPrizes,
     });
 

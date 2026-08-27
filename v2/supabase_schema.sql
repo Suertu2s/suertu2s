@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS raffles (
   winner_name TEXT DEFAULT '',
   winner_note TEXT DEFAULT '',
   estimated_ops_cost_clp INT DEFAULT 400000,
+  ticket_goal INT NOT NULL DEFAULT 1000,
   prizes JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -396,3 +397,7 @@ INSERT INTO affiliates (
   )
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name;
+
+-- Migración: meta de tickets por ciclo (Analítica)
+ALTER TABLE raffles
+  ADD COLUMN IF NOT EXISTS ticket_goal INT NOT NULL DEFAULT 1000;

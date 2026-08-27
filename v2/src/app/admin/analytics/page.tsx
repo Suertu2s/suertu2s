@@ -5,6 +5,7 @@ import { formatClp } from "@/data/packs";
 import { useAdmin } from "@/components/admin/AdminContext";
 import {
   CumulativeRevenueChart,
+  CumulativeTicketsChart,
   DonutChart,
   FunnelBars,
   RevenueOrdersChart,
@@ -22,6 +23,15 @@ type AnalyticsPayload = {
     conversionPct: number;
     failRatePct: number;
     ticketsIssued: number;
+    ticketsTowardGoal: number;
+    ticketGoal: number;
+    ticketGoalPct: number;
+    gapToTicketGoal: number;
+    minTicketGoal: number;
+    minTicketGoalPct: number;
+    gapToMinTicketGoal: number;
+    avgDailyTickets: number;
+    projectedTicketsToEnd: number;
     revenuePerTicket: number;
     uniqueCustomers: number;
     repeatCustomers: number;
@@ -40,6 +50,8 @@ type AnalyticsPayload = {
     gapToBreakEvenClp: number;
     projectedToEndClp: number;
     onTrack: boolean | null;
+    onTrackMin: boolean | null;
+    onTrackMoney: boolean | null;
     comparison: {
       revenuePct: number;
       ordersPaidPct: number;
@@ -50,6 +62,11 @@ type AnalyticsPayload = {
     label: string;
     revenue: number;
     orders: number;
+    cumulative: number;
+  }>;
+  dailyTickets: Array<{
+    label: string;
+    tickets: number;
     cumulative: number;
   }>;
   funnel: Array<{ stage: string; value: number }>;
@@ -70,18 +87,26 @@ type AnalyticsPayload = {
     detail: string;
   }>;
   goal: {
-    prizeId: string;
+    type: "tickets";
+    ticketGoal: number;
+    minTicketGoal: number;
     label: string;
+    minLabel: string;
     name: string;
+    prizeId: string;
     prizeCostClp: number;
     opsCostClp: number;
     breakEvenClp: number;
+    moneyLabel: string;
+    moneyName: string;
   };
   prizes: Array<{ id: string; name: string; costClp: number }>;
   raffle: {
     title: string;
     prizeName: string;
     endsAt: string;
+    ticketGoal: number;
+    minTicketGoal: number;
     estimatedPrizeCostClp: number;
     estimatedOpsCostClp: number;
   };
@@ -154,8 +179,15 @@ export default function AdminAnalyticsPage() {
   }
 
   const { summary: s, raffle, goal, prizes } = data;
-  const faltaParaMeta = s.gapToBreakEvenClp;
-  const goalShort = goal?.name || "el premio";
+  const faltaTickets = s.gapToTicketGoal ?? 0;
+  const ticketGoal = s.ticketGoal ?? goal.ticketGoal ?? raffle.ticketGoal ?? 0;
+  const minTicketGoal =
+    s.minTicketGoal ?? goal.minTicketGoal ?? raffle.minTicketGoal ?? 15_000;
+  const ticketPct = s.ticketGoalPct ?? 0;
+  const minTicketPct = s.minTicketGoalPct ?? 0;
+  const faltaMin = s.gapToMinTicketGoal ?? 0;
+  const ticketsSold = s.ticketsTowardGoal ?? 0;
+  const moneyName = goal.moneyName || "el premio";
 
   return (
     <div className="space-y-5">
@@ -165,14 +197,14 @@ export default function AdminAnalyticsPage() {
             Analítica
           </h2>
           <p className="text-sm text-brand-muted m-0 mt-1 max-w-3xl">
-            Acá ves, en simple, cómo va el negocio: cuánto dinero entró, si
-            alcanza para el premio que elijas, qué pack se vende más y si los
-            códigos de amigos están funcionando.
+            Hay dos metas de tickets: la del ciclo (configurable) y la mínima
+            fija de 15.000. También ves plata cobrada, packs y códigos de
+            amigos.
           </p>
         </div>
         <label className="block space-y-1 min-w-[220px]">
           <span className="text-[11px] text-brand-muted uppercase font-semibold tracking-wide">
-            Analizar meta de
+            Ver cobertura de costos de
           </span>
           <select
             value={prizeId}
@@ -193,28 +225,54 @@ export default function AdminAnalyticsPage() {
         <p className="text-brand-gold font-bold m-0">Para leer esto fácil</p>
         <ul className="m-0 pl-4 text-brand-muted space-y-1">
           <li>
+            <strong className="text-white">{goal.label}</strong> = meta del
+            sorteo actual (se define al crear el ciclo). Línea dorada.
+          </li>
+          <li>
+            <strong className="text-white">
+              {goal.minLabel || "Meta mínima: 15.000"}
+            </strong>{" "}
+            = piso fijo del negocio. Línea azul.
+          </li>
+          <li>
             <strong className="text-white">Dinero cobrado</strong> = plata que
             realmente pagaron los clientes.
-          </li>
-          <li>
-            <strong className="text-white">Cantidad de compras</strong> =
-            cuántas personas pagaron (no es lo mismo que el dinero).
-          </li>
-          <li>
-            <strong className="text-white">{goal.label}</strong> = plata que
-            necesitas juntar para {goalShort} más los gastos. Si llegas al 100%,
-            esa meta se cubre sola.
           </li>
         </ul>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
+          label="Progreso meta del ciclo"
+          value={`${ticketPct}%`}
+          hint={
+            faltaTickets > 0
+              ? `${ticketsSold} de ${ticketGoal.toLocaleString("es-CL")} · faltan ${faltaTickets.toLocaleString("es-CL")}`
+              : `${ticketsSold.toLocaleString("es-CL")} de ${ticketGoal.toLocaleString("es-CL")} · cubierta`
+          }
+          accent={ticketPct >= 100}
+        />
+        <KpiCard
+          label="Progreso meta mínima (15.000)"
+          value={`${minTicketPct}%`}
+          hint={
+            faltaMin > 0
+              ? `${ticketsSold.toLocaleString("es-CL")} de ${minTicketGoal.toLocaleString("es-CL")} · faltan ${faltaMin.toLocaleString("es-CL")}`
+              : `${ticketsSold.toLocaleString("es-CL")} · mínima cubierta`
+          }
+          accent={minTicketPct >= 100}
+        />
+        <KpiCard
+          label="Tickets vendidos (ciclo)"
+          value={ticketsSold.toLocaleString("es-CL")}
+          hint={`Ciclo ${ticketGoal.toLocaleString("es-CL")} · Mín. ${minTicketGoal.toLocaleString("es-CL")}`}
+          accent
+        />
+        <KpiCard
           label="Dinero cobrado"
           value={formatClp(s.revenueClp)}
           delta={s.comparison.revenuePct}
           hint="Suma de todo lo pagado"
-          accent
         />
         <KpiCard
           label="Cantidad de compras"
@@ -228,34 +286,25 @@ export default function AdminAnalyticsPage() {
           hint={`Comisiones: ${formatClp(s.commissionsEarnedClp)}`}
         />
         <KpiCard
-          label={`Cuánto llevas de la meta (${goalShort})`}
-          value={`${s.breakEvenPct}%`}
+          label="Si sigues así, tickets al final"
+          value={(s.projectedTicketsToEnd ?? 0).toLocaleString("es-CL")}
           hint={
-            faltaParaMeta > 0
-              ? `Faltan ${formatClp(faltaParaMeta)}`
-              : "Meta cubierta"
-          }
-          accent={s.breakEvenPct >= 100}
-        />
-        <KpiCard
-          label="De cada 100 que empiezan, cuántos pagan"
-          value={`${s.conversionPct}`}
-          hint={`${s.ordersPaid} pagaron de ${s.ordersTotal}`}
-        />
-        <KpiCard
-          label="Promedio que vendes al día"
-          value={formatClp(s.avgDailyRevenueClp)}
-          hint={`${s.avgDailyOrders} compras por día`}
-        />
-        <KpiCard
-          label="Si sigues así, cuánto juntarías al final"
-          value={formatClp(s.projectedToEndClp)}
-          hint={
-            s.onTrack == null
+            s.onTrack == null && s.onTrackMin == null
               ? `Quedan ${s.daysLeftToRaffle} días`
-              : s.onTrack
-                ? "Vas bien para la meta"
-                : "Vas corto para la meta"
+              : [
+                  s.onTrack === false
+                    ? "Corto vs ciclo"
+                    : s.onTrack
+                      ? "Ok ciclo"
+                      : null,
+                  s.onTrackMin === false
+                    ? "corto vs mín."
+                    : s.onTrackMin
+                      ? "ok mín."
+                      : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || `Quedan ${s.daysLeftToRaffle} días`
           }
         />
         <KpiCard
@@ -266,6 +315,26 @@ export default function AdminAnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Panel title="¿Cuántos tickets llevas vs las metas?">
+          <div className="p-3">
+            {(data.dailyTickets?.length ?? 0) > 0 ? (
+              <CumulativeTicketsChart
+                data={data.dailyTickets}
+                ticketGoal={ticketGoal}
+                minTicketGoal={minTicketGoal}
+                goalLabel={goal.label}
+                minGoalLabel={goal.minLabel || "Meta mínima: 15.000"}
+              />
+            ) : (
+              <EmptyState title="Todavía no hay tickets en estas fechas" />
+            )}
+            <p className="text-[11px] text-brand-muted px-1 m-0">
+              Verde = tickets acumulados. Dorado = meta del ciclo (
+              {ticketGoal.toLocaleString("es-CL")}). Azul = meta mínima (
+              {minTicketGoal.toLocaleString("es-CL")}).
+            </p>
+          </div>
+        </Panel>
         <Panel title="Dinero del día vs cantidad de compras">
           <div className="p-3">
             {data.daily.length ? (
@@ -279,26 +348,29 @@ export default function AdminAnalyticsPage() {
             </p>
           </div>
         </Panel>
-        <Panel title={`¿Alcanza la plata para ${goalShort}?`}>
-          <div className="p-3">
-            {data.daily.length ? (
-              <CumulativeRevenueChart
-                data={data.daily}
-                breakEven={s.breakEvenClp}
-                goalLabel={goal.label}
-              />
-            ) : (
-              <EmptyState title="Todavía no hay ventas en estas fechas" />
-            )}
-            <p className="text-[11px] text-brand-muted px-1 m-0">
-              La línea verde es la plata que vas juntando. La línea dorada
-              punteada es la meta: costo de {goalShort} (
-              {formatClp(goal.prizeCostClp)}) + gastos (
-              {formatClp(goal.opsCostClp)}).
-            </p>
-          </div>
-        </Panel>
       </div>
+
+      <Panel title={`¿La plata cubre ${moneyName}? (secundario)`}>
+        <div className="p-3">
+          {data.daily.length ? (
+            <CumulativeRevenueChart
+              data={data.daily}
+              breakEven={s.breakEvenClp}
+              goalLabel={goal.moneyLabel || "Meta de costos"}
+            />
+          ) : (
+            <EmptyState title="Todavía no hay ventas en estas fechas" />
+          )}
+          <p className="text-[11px] text-brand-muted px-1 m-0">
+            Cobertura de costos: {s.breakEvenPct}% ·{" "}
+            {s.gapToBreakEvenClp > 0
+              ? `faltan ${formatClp(s.gapToBreakEvenClp)}`
+              : "costos cubiertos"}{" "}
+            · premio {formatClp(goal.prizeCostClp)} + gastos{" "}
+            {formatClp(goal.opsCostClp)}.
+          </p>
+        </div>
+      </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Panel title="Cómo terminan las compras">
@@ -432,10 +504,11 @@ export default function AdminAnalyticsPage() {
 
       <div className="text-[11px] text-brand-muted border border-white/10 rounded-xl p-3">
         Sorteo: {raffle.prizeName} · Termina el{" "}
-        {new Date(raffle.endsAt).toLocaleDateString("es-CL")} · Números
-        entregados: {s.ticketsIssued} · Plata promedio por número:{" "}
-        {formatClp(s.revenuePerTicket)} · Meta actual: {goal.label} (
-        {formatClp(goal.breakEvenClp)})
+        {new Date(raffle.endsAt).toLocaleDateString("es-CL")} · Meta del ciclo:{" "}
+        {ticketGoal.toLocaleString("es-CL")} ({ticketPct}%) · Meta mínima:{" "}
+        {minTicketGoal.toLocaleString("es-CL")} ({minTicketPct}%) · Avance:{" "}
+        {ticketsSold.toLocaleString("es-CL")} · En el rango: {s.ticketsIssued} ·
+        Plata promedio por número: {formatClp(s.revenuePerTicket)}
       </div>
     </div>
   );

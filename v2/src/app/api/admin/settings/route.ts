@@ -135,6 +135,7 @@ const putSchema = z.object({
       ticketMin: z.number().int().nonnegative().optional(),
       ticketMax: z.number().int().positive().optional(),
       estimatedOpsCostClp: z.number().int().nonnegative().max(100_000_000),
+      ticketGoal: z.number().int().positive().max(10_000_000).optional(),
       liveStreamUrl: z
         .string()
         .max(500)

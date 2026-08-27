@@ -16,6 +16,7 @@ type RaffleDto = {
   ticketMax: number;
   estimatedPrizeCostClp: number;
   estimatedOpsCostClp: number;
+  ticketGoal: number;
   liveStreamUrl?: string;
   raffleStatus: "open" | "closed";
   winnerTicketCode?: string;
@@ -41,6 +42,7 @@ const emptyForm = {
   endsAt: "",
   prizeCostClp: "",
   opsCostClp: "",
+  ticketGoal: "",
   liveStreamUrl: "",
 };
 
@@ -102,6 +104,7 @@ export default function AdminRafflesPage() {
           endsAt: new Date(form.endsAt).toISOString(),
           prizeCostClp: Number(form.prizeCostClp),
           opsCostClp: form.opsCostClp ? Number(form.opsCostClp) : 0,
+          ticketGoal: Number(form.ticketGoal),
           liveStreamUrl: form.liveStreamUrl,
         }),
       });
@@ -202,6 +205,12 @@ export default function AdminRafflesPage() {
                 {formatClp(active.estimatedOpsCostClp)}
               </dd>
               <dt className="text-brand-muted text-xs uppercase font-semibold m-0">
+                Meta de tickets
+              </dt>
+              <dd className="m-0 text-white font-bold">
+                {active.ticketGoal?.toLocaleString("es-CL") ?? "—"}
+              </dd>
+              <dt className="text-brand-muted text-xs uppercase font-semibold m-0">
                 Live
               </dt>
               <dd className="m-0 text-white truncate">
@@ -236,7 +245,7 @@ export default function AdminRafflesPage() {
                 required
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field
                 label="Código del ciclo"
                 value={form.code}
@@ -251,6 +260,8 @@ export default function AdminRafflesPage() {
                 onChange={set("endsAt")}
                 required
               />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field
                 label="Costo del premio (CLP)"
                 type="number"
@@ -259,8 +270,6 @@ export default function AdminRafflesPage() {
                 placeholder="150000"
                 required
               />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field
                 label="Gastos de operación (CLP)"
                 type="number"
@@ -268,6 +277,16 @@ export default function AdminRafflesPage() {
                 onChange={set("opsCostClp")}
                 placeholder="0"
               />
+              <Field
+                label="Meta de tickets"
+                type="number"
+                value={form.ticketGoal}
+                onChange={set("ticketGoal")}
+                placeholder="1000"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3">
               <Field
                 label="Link del live (opcional)"
                 value={form.liveStreamUrl}
