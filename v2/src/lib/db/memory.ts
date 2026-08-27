@@ -379,10 +379,15 @@ export function memoryFulfillOrder(orderId: string) {
     const existing = s.tickets.filter((t) => t.order_id === orderId);
     return { order, tickets: existing, alreadyPaid: true };
   }
+  if (order.status !== "pending" && order.status !== "failed") {
+    throw new Error("El pedido no está pendiente de pago");
+  }
 
   const items = s.items.filter((i) => i.order_id === orderId);
   const count = items.reduce((acc, i) => acc + i.ticket_count, 0);
-  const tickets = allocateRandomTickets(order, count);
+  const existing = s.tickets.filter((t) => t.order_id === orderId);
+  const tickets =
+    existing.length > 0 ? existing : allocateRandomTickets(order, count);
 
   order.status = "paid";
   order.paid_at = new Date().toISOString();

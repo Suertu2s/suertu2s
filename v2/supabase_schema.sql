@@ -241,7 +241,7 @@ BEGIN
     );
   END IF;
 
-  IF v_order.status <> 'pending' THEN
+  IF v_order.status <> 'pending' AND v_order.status <> 'failed' THEN
     RAISE EXCEPTION 'El pedido no está pendiente de pago (estado: %)', v_order.status;
   END IF;
 

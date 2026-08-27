@@ -386,7 +386,8 @@ export async function fulfillOrder(orderId: string) {
       };
     }
 
-    if (order.status !== "pending") {
+    // pending = normal; failed = recuperar si Flow confirmó después (p. ej. return llegó antes que el webhook)
+    if (order.status !== "pending" && order.status !== "failed") {
       throw new Error("El pedido no está pendiente de pago");
     }
 
@@ -397,7 +398,7 @@ export async function fulfillOrder(orderId: string) {
       .from("orders")
       .update({ status: "paid", paid_at: paidAt })
       .eq("id", orderId)
-      .eq("status", "pending");
+      .in("status", ["pending", "failed"]);
 
     if (updateErr) {
       throw new Error(`Error al actualizar estado del pedido: ${updateErr.message}`);

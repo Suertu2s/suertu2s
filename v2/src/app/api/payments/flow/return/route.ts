@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fulfillOrder, markOrderFailed } from "@/lib/db/orders";
-import { deliverOrderConfirmation } from "@/lib/email/deliver-confirmation";
+import { getOrder, markOrderFailed } from "@/lib/db/orders";
+import { confirmFlowPaymentByToken } from "@/lib/payments/flow-confirm";
 import { getFlowPaymentStatus } from "@/lib/payments/flow";
 import { logServerError } from "@/lib/security/errors";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   return handleReturn(req);
@@ -33,21 +36,44 @@ async function handleReturn(req: NextRequest) {
 
     const flowStatus = await getFlowPaymentStatus(token);
     const orderId = flowStatus.commerceOrder;
+    const order = await getOrder(orderId);
 
-    if (flowStatus.status === 2) {
-      // Pagado con éxito
-      await fulfillOrder(orderId);
-      await deliverOrderConfirmation(orderId);
+    if (order?.status === "paid") {
       return NextResponse.redirect(
         `${site}/pago/exito?orderId=${encodeURIComponent(orderId)}`,
       );
-    } else {
-      // Rechazado (3), Anulado (4) o Pendiente (1)
-      await markOrderFailed(orderId);
+    }
+
+    // 2 = pagado → cumplir solo (códigos + correo + panel)
+    if (flowStatus.status === 2) {
+      const result = await confirmFlowPaymentByToken(token);
+      if (result.ok && result.paid) {
+        return NextResponse.redirect(
+          `${site}/pago/exito?orderId=${encodeURIComponent(orderId)}`,
+        );
+      }
+      logServerError(
+        "payments/flow/return",
+        new Error(result.error || "confirm_failed_on_paid_status"),
+      );
+      // Flow dice pagado: no mandar a error genérico; la página puede reconciliar
       return NextResponse.redirect(
-        `${site}/pago/error?orderId=${encodeURIComponent(orderId)}&status=${flowStatus.status}`,
+        `${site}/pago/exito?orderId=${encodeURIComponent(orderId)}&pending=1`,
       );
     }
+
+    // 1 = pendiente: esperar webhook / reconciliación. Nunca marcar fallido.
+    if (flowStatus.status === 1) {
+      return NextResponse.redirect(
+        `${site}/pago/exito?orderId=${encodeURIComponent(orderId)}&pending=1&token=${encodeURIComponent(token)}`,
+      );
+    }
+
+    // 3 rechazado / 4 anulado
+    await markOrderFailed(orderId);
+    return NextResponse.redirect(
+      `${site}/pago/error?orderId=${encodeURIComponent(orderId)}&status=${flowStatus.status}`,
+    );
   } catch (error) {
     logServerError("payments/flow/return", error);
     return NextResponse.redirect(`${site}/pago/error?reason=flow_error`);

@@ -8,7 +8,8 @@ import { logServerError } from "@/lib/security/errors";
 
 /**
  * Envía el email de confirmación si aún no se marcó como enviado.
- * Los reintentos de webhook/webpay llaman esto aunque alreadyPaid=true.
+ * Los reintentos de webhook llaman esto aunque alreadyPaid=true.
+ * Nunca bloquea el fulfill: si el mail falla, el pedido igual queda paid.
  */
 export async function deliverOrderConfirmation(
   orderId: string,
@@ -39,6 +40,20 @@ export async function deliverOrderConfirmation(
       detail.tickets,
       packIds,
     );
+
+    if ("error" in result && result.error) {
+      return { sent: false, reason: String(result.error) };
+    }
+
+    // En producción no marcar como enviado si solo fue mock (sin API key)
+    if (result.mocked && process.env.NODE_ENV === "production") {
+      logServerError(
+        "email/deliver-confirmation",
+        new Error("RESEND_API_KEY ausente en producción; correo no enviado"),
+      );
+      return { sent: false, mocked: true, reason: "resend_not_configured" };
+    }
+
     await markConfirmationEmailSent(orderId);
     return { sent: true, mocked: Boolean(result.mocked) };
   } catch (error) {

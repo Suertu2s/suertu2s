@@ -232,8 +232,12 @@ export async function sendOrderConfirmation(
           subject: `¡Pago Confirmado! Tus Boletos e Ilustraciones Suertu2s (Pedido ${safeOrderId.slice(0, 8)})`,
           html,
         });
+        if (retryResult.error) {
+          return { error: retryResult.error.message };
+        }
         return { mocked: false, fallbackUsed: true, id: retryResult.data?.id };
       }
+      return { error: result.error.message };
     }
 
     return { mocked: false, id: result.data?.id };

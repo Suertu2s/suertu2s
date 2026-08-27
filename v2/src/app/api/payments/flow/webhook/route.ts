@@ -1,10 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fulfillOrder, getOrder } from "@/lib/db/orders";
-import { deliverOrderConfirmation } from "@/lib/email/deliver-confirmation";
-import { getFlowPaymentStatus } from "@/lib/payments/flow";
+import { confirmFlowPaymentByToken } from "@/lib/payments/flow-confirm";
 import { logServerError } from "@/lib/security/errors";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+async function readToken(req: NextRequest): Promise<string> {
+  let token = "";
+  try {
+    const formData = await req.formData();
+    token = String(formData.get("token") || "");
+  } catch {
+    try {
+      const json = await req.json();
+      token = String(json?.token || "");
+    } catch {
+      token = "";
+    }
+  }
+  if (!token) {
+    token = req.nextUrl.searchParams.get("token") || "";
+  }
+  return token.trim();
+}
+
+/**
+ * Notificación de Flow (urlConfirmation).
+ * Debe confirmar el pago solo: marcar paid, emitir códigos y enviar correo.
+ */
 export async function POST(req: NextRequest) {
   try {
     const limited = rateLimit({
@@ -22,51 +46,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let token = "";
-    try {
-      const formData = await req.formData();
-      token = String(formData.get("token") || "");
-    } catch {
-      const json = await req.json().catch(() => ({}));
-      token = String(json?.token || "");
-    }
-
+    const token = await readToken(req);
     if (!token) {
-      token = req.nextUrl.searchParams.get("token") || "";
+      // No devolver 200: Flow dejaría de reintentar y el pedido quedaría pendiente
+      return NextResponse.json({ error: "no_token" }, { status: 400 });
     }
 
-    if (!token) {
-      return NextResponse.json({ ok: true, skipped: true, reason: "no_token" });
-    }
+    const result = await confirmFlowPaymentByToken(token);
 
-    const flowStatus = await getFlowPaymentStatus(token);
-
-    // Status 2 = Pagado en Flow
-    if (flowStatus.status !== 2) {
-      return NextResponse.json({ ok: true, status: flowStatus.status });
-    }
-
-    const orderId = flowStatus.commerceOrder;
-    const order = await getOrder(orderId);
-
-    if (!order) {
-      return NextResponse.json({ ok: true, missing: true });
-    }
-
-    if (Math.round(flowStatus.amount) !== order.total_clp) {
-      logServerError(
-        "payments/flow/webhook",
-        new Error(
-          `Monto Flow no coincide pedido=${order.id} esperado=${order.total_clp} recibido=${flowStatus.amount}`,
-        ),
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error || "confirm_failed", orderId: result.orderId },
+        { status: result.httpStatus || 500 },
       );
-      return NextResponse.json({ error: "Monto no coincide" }, { status: 400 });
     }
 
-    await fulfillOrder(order.id);
-    const email = await deliverOrderConfirmation(order.id);
+    if (!result.paid) {
+      // Aún no pagado en Flow (status 1/3/4) — 200 para no saturar reintentos
+      return NextResponse.json({
+        ok: true,
+        status: result.status,
+        orderId: result.orderId,
+        paid: false,
+      });
+    }
 
-    return NextResponse.json({ ok: true, email });
+    return NextResponse.json({
+      ok: true,
+      paid: true,
+      alreadyPaid: Boolean(result.alreadyPaid),
+      orderId: result.orderId,
+      email: result.email,
+    });
   } catch (error) {
     logServerError("payments/flow/webhook", error);
     return NextResponse.json(
