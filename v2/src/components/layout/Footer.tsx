@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -51,6 +52,14 @@ export function Footer() {
             </li>
             <li>
               <Link
+                href="/privacidad"
+                className="hover:text-brand-greenBright transition-colors no-underline text-brand-muted"
+              >
+                Política de privacidad
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/afiliados"
                 className="hover:text-brand-greenBright transition-colors no-underline text-brand-muted"
               >
@@ -68,10 +77,10 @@ export function Footer() {
             </li>
             <li>
               <a
-                href="mailto:contacto@suertu2s.com"
+                href={`mailto:${CONTACT_EMAIL}`}
                 className="hover:text-brand-greenBright transition-colors no-underline text-brand-muted"
               >
-                contacto@suertu2s.com
+                {CONTACT_EMAIL}
               </a>
             </li>
           </ul>

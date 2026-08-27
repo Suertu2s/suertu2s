@@ -8,9 +8,11 @@ import { triggerLuckEffect } from "@/components/ui/GoldenCloverEffect";
 
 const navLinks = [
   { href: "/", label: "Inicio" },
+  { href: "/sorteos-activos", label: "Premios activos" },
   { href: "/#comprar", label: "Elegir pack" },
   { href: "/#como-jugar", label: "Cómo funciona" },
   { href: "/#faq", label: "Preguntas frecuentes" },
+  { href: "/afiliados", label: "Soy afiliado" },
   { href: "/bases-legales", label: "Bases legales" },
 ];
 
@@ -69,7 +71,7 @@ export function Header() {
             </Link>
 
             <Link
-              href="/carrito"
+              href="/checkout"
               className="block cursor-pointer transition-all duration-200 hover:scale-110 text-brand-gold hover:text-brand-cream relative shrink-0"
               title="Carrito"
             >

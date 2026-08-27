@@ -102,6 +102,9 @@ export function CheckoutView() {
   const [mounted, setMounted] = useState(false);
 
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [rut, setRut] = useState("");
+  const [phone, setPhone] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [referralName, setReferralName] = useState("");
   const [referralLocked, setReferralLocked] = useState(false);
@@ -165,9 +168,29 @@ export function CheckoutView() {
 
     setLoading(true);
 
-    const localName = email.split("@")[0] || "Participante";
+    const localName = fullName.trim() || email.split("@")[0] || "Participante";
     const lockedCode = referralLocked ? readReferralCode() : null;
     const codeToSend = (lockedCode || referralCode).trim() || undefined;
+
+    if (codeToSend) {
+      try {
+        const valRes = await fetch("/api/affiliates/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: codeToSend }),
+        });
+        const valData = (await valRes.json()) as { valid?: boolean };
+        if (!valData.valid) {
+          throw new Error("El código de embajador no es válido o está inactivo.");
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("embajador")) {
+          setError(err.message);
+          setLoading(false);
+          return;
+        }
+      }
+    }
 
     try {
       const res = await fetch("/api/checkout", {
@@ -176,8 +199,8 @@ export function CheckoutView() {
         body: JSON.stringify({
           email,
           fullName: localName,
-          rut: "s/n",
-          phone: "s/n",
+          rut: rut.trim() || "s/n",
+          phone: phone.trim() || "s/n",
           provider,
           referralCode: codeToSend,
           referralName: referralLocked
@@ -193,19 +216,8 @@ export function CheckoutView() {
       if (!res.ok)
         throw new Error(data.error || "No se pudo procesar el pedido");
 
-      if (data.method === "webpay_form" && data.token && data.redirectUrl) {
-        const formEl = document.createElement("form");
-        formEl.method = "POST";
-        formEl.action = data.redirectUrl;
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = "token_ws";
-        input.value = data.token;
-        formEl.appendChild(input);
-        document.body.appendChild(formEl);
-        clear();
-        formEl.submit();
-        return;
+      if (data.orderId && typeof window !== "undefined") {
+        sessionStorage.setItem(`order_email_${data.orderId}`, email.trim());
       }
 
       clear();
@@ -288,6 +300,60 @@ export function CheckoutView() {
               autoComplete="email"
             />
           </label>
+
+          <label className="block mb-5">
+            <span className="block mb-2 text-[14px] font-semibold text-white/80">
+              Nombre completo
+            </span>
+            <input
+              type="text"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full rounded-lg px-4 py-[0.8rem] text-[15px] text-white outline-none"
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.02)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+              }}
+              autoComplete="name"
+              placeholder="Tu nombre y apellido"
+            />
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+            <label className="block">
+              <span className="block mb-2 text-[14px] font-semibold text-white/80">
+                RUT (opcional)
+              </span>
+              <input
+                type="text"
+                value={rut}
+                onChange={(e) => setRut(e.target.value)}
+                className="w-full rounded-lg px-4 py-[0.8rem] text-[15px] text-white outline-none"
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                }}
+                placeholder="12.345.678-9"
+              />
+            </label>
+            <label className="block">
+              <span className="block mb-2 text-[14px] font-semibold text-white/80">
+                Teléfono (opcional)
+              </span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full rounded-lg px-4 py-[0.8rem] text-[15px] text-white outline-none"
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                }}
+                placeholder="+56 9 1234 5678"
+              />
+            </label>
+          </div>
 
           <ReferralBox
             code={referralCode}
@@ -535,7 +601,7 @@ export function CheckoutView() {
             Tus datos personales se utilizarán para procesar tu pedido, mejorar
             tu experiencia en esta web y otros propósitos descritos en nuestra{" "}
             <Link
-              href="/bases-legales"
+              href="/privacidad"
               className="text-[#f7c64b] underline underline-offset-2 hover:text-[#36f073]"
             >
               política de privacidad
@@ -555,7 +621,7 @@ export function CheckoutView() {
               <span>
                 He leído y acepto la{" "}
                 <Link
-                  href="/bases-legales"
+                  href="/privacidad"
                   className="text-[#f7c64b] underline underline-offset-2 hover:text-[#36f073]"
                 >
                   política de privacidad

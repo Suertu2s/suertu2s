@@ -17,6 +17,7 @@ import {
   syncCatalogFromDb,
   updateRaffle,
 } from "@/lib/catalog/store";
+import { checkProductionEnv } from "@/lib/env/production-check";
 import { paymentsMockEnabled } from "@/lib/db/orders";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/supabase";
 import { logServerError, publicError } from "@/lib/security/errors";
@@ -77,6 +78,10 @@ function envPayload() {
       if (!domain) return "***";
       return `${user.slice(0, 2)}***@${domain}`;
     }),
+    productionIssues:
+      process.env.NODE_ENV === "production" ? checkProductionEnv() : [],
+    flowEnv: process.env.FLOW_ENV || "sandbox",
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "",
   };
 }
 

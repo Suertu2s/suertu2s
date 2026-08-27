@@ -763,6 +763,26 @@ export async function syncCatalogFromDb() {
     }
 
     if (historyRes.data && Array.isArray(historyRes.data)) {
+      const historyIds = historyRes.data.map((r) => String(r.id));
+      const orderCountMap = new Map<string, number>();
+      const ticketCountMap = new Map<string, number>();
+
+      if (historyIds.length > 0) {
+        const [ordersCountRes, ticketsCountRes] = await Promise.all([
+          supabase.from("orders").select("raffle_id").in("raffle_id", historyIds),
+          supabase.from("tickets").select("raffle_id").in("raffle_id", historyIds),
+        ]);
+
+        for (const row of ordersCountRes.data || []) {
+          const id = String(row.raffle_id);
+          orderCountMap.set(id, (orderCountMap.get(id) || 0) + 1);
+        }
+        for (const row of ticketsCountRes.data || []) {
+          const id = String(row.raffle_id);
+          ticketCountMap.set(id, (ticketCountMap.get(id) || 0) + 1);
+        }
+      }
+
       s.raffleHistory = historyRes.data.map((r) => ({
         id: String(r.id),
         title: String(r.title || ""),
@@ -782,8 +802,8 @@ export async function syncCatalogFromDb() {
         winnerName: String(r.winner_name || ""),
         winnerNote: String(r.winner_note || ""),
         archivedAt: String(r.created_at || ""),
-        ordersCount: 0,
-        ticketsCount: 0,
+        ordersCount: orderCountMap.get(String(r.id)) || 0,
+        ticketsCount: ticketCountMap.get(String(r.id)) || 0,
       }));
     }
   } catch (err) {

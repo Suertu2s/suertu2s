@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 const REASON_MESSAGES: Record<string, string> = {
   mock_disabled: "Los pagos de prueba no están habilitados en este momento.",
@@ -16,7 +17,7 @@ function ErrorContent() {
   const detail =
     (reason && REASON_MESSAGES[reason]) ||
     (reason === "no_token"
-      ? "No recibimos el comprobante de Flow. Si te descontaron el dinero, escribe a contacto@suertu2s.com con el comprobante y te ayudamos."
+      ? `No recibimos el comprobante de Flow. Si te descontaron el dinero, escribe a ${CONTACT_EMAIL} con el comprobante y te ayudamos.`
       : reason === "flow_error"
         ? "Hubo un problema técnico al volver de Flow. Si te cobraron, no vuelvas a pagar: contáctanos con el comprobante."
         : "Hubo un problema al procesar el pago. Si te descontaron el dinero, no reintentes: contáctanos.");
@@ -39,10 +40,10 @@ function ErrorContent() {
           Reintentar
         </Link>
         <Link
-          href="/carrito"
+          href="/checkout"
           className="border border-brand-gold/30 text-brand-cream font-bold uppercase px-6 py-3 rounded-full no-underline"
         >
-          Ver carrito
+          Volver al checkout
         </Link>
       </div>
     </main>

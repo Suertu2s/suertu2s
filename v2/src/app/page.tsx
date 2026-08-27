@@ -7,6 +7,7 @@ import { Packs } from "@/components/home/Packs";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { FAQ } from "@/components/home/FAQ";
 import { PACKS } from "@/data/packs";
+import { absoluteUrl } from "@/lib/site";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -24,11 +25,11 @@ const jsonLd = {
       name: p.name,
       price: p.priceClp,
       priceCurrency: "CLP",
-      url: `https://suertu2s.com/#comprar`,
+      url: absoluteUrl("/#comprar"),
       itemOffered: {
         "@type": "Product",
         name: p.name,
-        image: `https://suertu2s.com${p.image}`,
+        image: absoluteUrl(p.image),
       },
     })),
   },

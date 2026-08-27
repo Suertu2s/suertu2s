@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { formatClp } from "@/data/packs";
 import { useAdmin } from "@/components/admin/AdminContext";
-import { EmptyState, Field, Panel, formatDate } from "@/components/admin/ui";
+import { EmptyState, ExportButtons, Field, Panel, formatDate } from "@/components/admin/ui";
 
 type RaffleDto = {
   id: string;
@@ -125,6 +125,29 @@ export default function AdminRafflesPage() {
     setForm((f) => ({ ...f, [key]: v }));
 
   const { active, history } = data;
+
+  const historyExportRows: string[][] = [
+    [
+      "Código",
+      "Título",
+      "Premio",
+      "Cierre",
+      "Pedidos",
+      "Códigos",
+      "Ganador",
+      "Nombre ganador",
+    ],
+    ...history.map((r) => [
+      r.code,
+      r.title,
+      r.prizeName,
+      r.endsAt,
+      String(r.ordersCount),
+      String(r.ticketsCount),
+      r.winnerTicketCode || "",
+      r.winnerName || "",
+    ]),
+  ];
 
   return (
     <div className="space-y-5">
@@ -322,12 +345,20 @@ export default function AdminRafflesPage() {
       <Panel
         title={`Historial de sorteos (${history.length})`}
         actions={
-          <Link
-            href="/admin/tickets"
-            className="text-xs text-brand-gold no-underline font-semibold"
-          >
-            Ver códigos
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {history.length > 0 && (
+              <ExportButtons
+                filenameBase="historial_sorteos"
+                rows={historyExportRows}
+              />
+            )}
+            <Link
+              href="/admin/tickets"
+              className="text-xs text-brand-gold no-underline font-semibold"
+            >
+              Ver códigos
+            </Link>
+          </div>
         }
       >
         {!history.length ? (

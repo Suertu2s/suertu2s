@@ -5,6 +5,7 @@ import type { DbOrder, DbTicket } from "@/lib/db/types";
 import { getPackById, getRaffle } from "@/lib/catalog/store";
 import { escapeHtml } from "@/lib/security/html";
 import { ticketDisplayCode } from "@/lib/tickets/codes";
+import { getSiteUrl, CONTACT_EMAIL } from "@/lib/site";
 
 export function formatClp(amount: number): string {
   return `$${Math.round(amount).toLocaleString("es-CL")}`;
@@ -20,19 +21,7 @@ function packEmailImagePath(packImage: string) {
 }
 
 function absoluteSiteUrl() {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  const fromVercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  let raw =
-    fromEnv ||
-    (fromVercel
-      ? fromVercel.startsWith("http")
-        ? fromVercel
-        : `https://${fromVercel}`
-      : "") ||
-    "https://suertu2s.com";
-  raw = raw.replace(/\/$/, "");
-  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
-  return raw;
+  return getSiteUrl();
 }
 
 export async function sendOrderConfirmation(
@@ -223,7 +212,7 @@ export async function sendOrderConfirmation(
           <tr>
             <td style="background:#030a05;padding:20px 24px;text-align:center;border-top:1px solid rgba(255,255,255,0.08);font-size:11px;color:#6b7280;line-height:1.6;">
               <p style="margin:0 0 6px;color:#9ca3af;">
-                <strong>Suertu2s</strong> · ¿Dudas? <a href="mailto:contacto@suertu2s.com" style="color:#36f073;text-decoration:none;">contacto@suertu2s.com</a>
+                <strong>Suertu2s</strong> · ¿Dudas? <a href="mailto:${CONTACT_EMAIL}" style="color:#36f073;text-decoration:none;">${CONTACT_EMAIL}</a>
               </p>
             </td>
           </tr>

@@ -264,7 +264,7 @@ export function LivePurchaseToast() {
           </p>
 
           <p className="m-0 mt-1 text-[10px] text-white/40 font-medium">
-            {current.timeAgo} · Verificado ✓
+            {current.timeAgo}
           </p>
         </div>
 

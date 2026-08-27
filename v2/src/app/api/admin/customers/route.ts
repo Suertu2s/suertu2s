@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthorized, parseDateRange } from "@/lib/admin/auth";
 import { buildCustomers, filterOrdersByRange } from "@/lib/admin/analytics";
+import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
 import { listOrders } from "@/lib/db/orders";
 
 export async function GET(req: NextRequest) {
@@ -9,15 +10,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const { from, to } = parseDateRange(req);
     const q = (req.nextUrl.searchParams.get("q") || "").toLowerCase().trim();
     const all = await listOrders();
     // Clientes derivados de pedidos; se puede filtrar por activos en el rango
     const inRange = filterOrdersByRange(all, from, to);
-    const emailsInRange = new Set(inRange.map((o) => o.email.toLowerCase()));
-    let customers = buildCustomers(all).filter((c) =>
-      emailsInRange.has(c.email),
-    );
+    let customers = buildCustomers(inRange);
 
     if (q) {
       customers = customers.filter(

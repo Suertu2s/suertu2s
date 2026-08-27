@@ -28,10 +28,38 @@ export const viewport: Viewport = {
   themeColor: "#030a05",
 };
 
+import { getSiteUrl } from "@/lib/site";
+
+const siteUrl = getSiteUrl();
+
 export const metadata: Metadata = {
-  title: "Suertudos Premios | MOTORRAD CORSA R150 0km 2026",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Suertudos Premios | MOTORRAD CORSA R150 0km 2026",
+    template: "%s | Suertu2s",
+  },
   description:
     "Adquiere ilustraciones digitales del sur de Chile y participa por la MOTORRAD CORSA R150 0km 2026. Pago 100% seguro con Flow.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "es_CL",
+    url: siteUrl,
+    siteName: "Suertu2s",
+    title: "Suertudos Premios | MOTORRAD CORSA R150 0km 2026",
+    description:
+      "Ilustraciones del sur de Chile + participación por una MOTORRAD CORSA R150 0km 2026.",
+    images: [{ url: "/suertu2s_moto_hero.jpg", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Suertu2s — MOTORRAD CORSA R150 2026",
+    description:
+      "Compra ilustraciones digitales y participa por la moto 0km.",
+    images: ["/suertu2s_moto_hero.jpg"],
+  },
   icons: {
     icon: "/favicon/trebol.webp",
     apple: "/favicon/trebol.webp",

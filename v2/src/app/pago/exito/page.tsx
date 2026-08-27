@@ -35,7 +35,14 @@ function ExitoContent() {
 
   async function loadConfirmation(id: string) {
     try {
-      const res = await fetch(`/api/payments/order/${encodeURIComponent(id)}`, {
+      const storedEmail =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem(`order_email_${id}`)
+          : null;
+      const qs = storedEmail
+        ? `?email=${encodeURIComponent(storedEmail)}`
+        : "";
+      const res = await fetch(`/api/payments/order/${encodeURIComponent(id)}${qs}`, {
         cache: "no-store",
       });
       const data = (await res.json()) as ConfirmPayload;
@@ -125,6 +132,7 @@ function ExitoContent() {
   }, [initiallyPending, orderId, token]);
 
   const paid = Boolean(detail?.paid) && !pending;
+  const missingOrder = !orderId;
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-12 sm:py-16 space-y-8">
@@ -133,14 +141,20 @@ function ExitoContent() {
           Suertu2s
         </p>
         <h1 className="font-title text-4xl sm:text-5xl font-black text-brand-greenBright m-0">
-          {pending ? "Confirmando tu pago…" : "¡Compra confirmada!"}
+          {missingOrder
+            ? "Revisa tu correo"
+            : pending
+              ? "Confirmando tu pago…"
+              : "¡Compra confirmada!"}
         </h1>
         <p className="text-brand-muted leading-relaxed m-0 max-w-lg mx-auto">
-          {pending
-            ? confirming
-              ? "Flow reportó el cobro. Estamos emitiendo tus códigos y enviando el correo con tus ilustraciones."
-              : "Tu pago está siendo confirmado. En cuanto se acredite, verás tus boletos aquí y en tu correo."
-            : "Gracias por confiar en Suertu2s. Abajo tienes el resumen de tu compra, tus ilustraciones y tus códigos."}
+          {missingOrder
+            ? "Si acabas de pagar, revisa tu correo con el resumen y tus códigos. También puedes consultarlos con tu email."
+            : pending
+              ? confirming
+                ? "Flow reportó el cobro. Estamos emitiendo tus códigos y enviando el correo con tus ilustraciones."
+                : "Tu pago está siendo confirmado. En cuanto se acredite, verás tus boletos aquí y en tu correo."
+              : "Gracias por confiar en Suertu2s. Abajo tienes el resumen de tu compra, tus ilustraciones y tus códigos."}
         </p>
       </div>
 

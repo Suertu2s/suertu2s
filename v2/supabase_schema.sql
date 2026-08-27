@@ -177,9 +177,8 @@ CREATE POLICY "Public can view raffles" ON raffles FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public can view active packs" ON packs;
 CREATE POLICY "Public can view active packs" ON packs FOR SELECT USING (active = true);
 
--- Políticas de tickets: público puede consultar por código o email
+-- Tickets: solo service_role (consulta pública vía API Next.js con rate limit)
 DROP POLICY IF EXISTS "Public can view tickets" ON tickets;
-CREATE POLICY "Public can view tickets" ON tickets FOR SELECT USING (true);
 
 -- Acceso total para Service Role (Backend Next.js) en todas las tablas
 DROP POLICY IF EXISTS "Service role full access on raffles" ON raffles;
@@ -309,6 +308,15 @@ BEGIN
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION fulfill_order_and_generate_tickets(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION fulfill_order_and_generate_tickets(UUID) FROM anon;
+REVOKE ALL ON FUNCTION fulfill_order_and_generate_tickets(UUID) FROM authenticated;
+GRANT EXECUTE ON FUNCTION fulfill_order_and_generate_tickets(UUID) TO service_role;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_payment_external_id_unique
+  ON orders (payment_external_id)
+  WHERE payment_external_id IS NOT NULL;
 
 -- =============================================================================
 -- SEED DE DATOS INICIALES (Sorteo + Packs + Afiliados Demo)

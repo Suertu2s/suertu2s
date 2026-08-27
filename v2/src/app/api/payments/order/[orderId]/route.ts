@@ -34,9 +34,21 @@ export async function GET(
       return NextResponse.json({ error: "Pedido inválido" }, { status: 400 });
     }
 
+    const emailParam = req.nextUrl.searchParams.get("email")?.toLowerCase().trim();
+
     const detail = await getOrderDetail(orderId);
     if (!detail) {
       return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
+    }
+
+    if (
+      !emailParam ||
+      emailParam !== detail.order.email.toLowerCase().trim()
+    ) {
+      return NextResponse.json(
+        { error: "Verificación requerida", paid: false },
+        { status: 403 },
+      );
     }
 
     if (detail.order.status !== "paid") {

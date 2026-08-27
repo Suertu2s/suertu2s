@@ -59,6 +59,9 @@ type SettingsData = {
     emailConfigured?: boolean;
     adminSessionSecretConfigured?: boolean;
     adminPasswordHashed?: boolean;
+    productionIssues?: Array<{ level: string; key: string; message: string }>;
+    flowEnv?: string;
+    siteUrl?: string;
     adminEmailsCount: number;
     adminEmailsMasked: string[];
   };
@@ -496,6 +499,20 @@ export default function AdminSettingsPage() {
               type="number"
               required
             />
+            <Field
+              label="Ticket mínimo (número aleatorio)"
+              value={raffleForm.ticketMin}
+              onChange={(v) => setRaffleForm((f) => ({ ...f, ticketMin: v }))}
+              type="number"
+              required
+            />
+            <Field
+              label="Ticket máximo (número aleatorio)"
+              value={raffleForm.ticketMax}
+              onChange={(v) => setRaffleForm((f) => ({ ...f, ticketMax: v }))}
+              type="number"
+              required
+            />
             <p className="text-xs text-brand-muted m-0 self-end pb-2 sm:col-span-2">
               Suma de premios:{" "}
               <span className="text-brand-gold font-semibold">
@@ -592,10 +609,19 @@ export default function AdminSettingsPage() {
             label="Flow.cl"
             value={
               data.env.flowConfigured
-                ? "Configurado (API Key + Secret Key)"
+                ? `Configurado (${data.env.flowEnv || "sandbox"})`
                 : "Sin claves (FLOW_API_KEY / FLOW_SECRET_KEY)"
             }
-            tone={data.env.flowConfigured ? "ok" : "warn"}
+            tone={
+              data.env.flowConfigured && data.env.flowEnv === "production"
+                ? "ok"
+                : "warn"
+            }
+          />
+          <Row
+            label="URL del sitio"
+            value={data.env.siteUrl || "No configurada"}
+            tone={data.env.siteUrl?.startsWith("https://") ? "ok" : "warn"}
           />
           <Row
             label="Base de datos (Supabase)"
@@ -631,6 +657,18 @@ export default function AdminSettingsPage() {
             }
             tone={data.env.adminPasswordHashed ? "ok" : "warn"}
           />
+          {data.env.productionIssues && data.env.productionIssues.length > 0 && (
+            <div className="border border-red-400/30 rounded-lg p-3 space-y-1">
+              <p className="text-red-300 text-xs font-bold m-0">
+                Alertas de producción
+              </p>
+              {data.env.productionIssues.map((issue) => (
+                <p key={issue.key} className="text-xs text-brand-muted m-0">
+                  <strong>{issue.key}:</strong> {issue.message}
+                </p>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-brand-muted m-0 pt-2">
             Contraseñas, emails admin y claves de pago se cambian en el archivo
             de entorno del servidor (<code>.env</code>), no aquí, por seguridad.

@@ -11,7 +11,7 @@ import {
   RevenueOrdersChart,
   SimpleBarChart,
 } from "@/components/admin/charts";
-import { EmptyState, KpiCard, Panel } from "@/components/admin/ui";
+import { EmptyState, ExportButtons, KpiCard, Panel } from "@/components/admin/ui";
 import { paymentProviderLabel } from "@/lib/i18n/labels";
 
 type AnalyticsPayload = {
@@ -189,6 +189,19 @@ export default function AdminAnalyticsPage() {
   const ticketsSold = s.ticketsTowardGoal ?? 0;
   const moneyName = goal.moneyName || "el premio";
 
+  const analyticsExportRows: string[][] = [
+    ["Métrica", "Valor"],
+    ["Ingresos pagados (CLP)", String(s.revenueClp)],
+    ["Pedidos pagados", String(s.ordersPaid)],
+    ["Tickets emitidos", String(s.ticketsIssued)],
+    ["Meta tickets ciclo", String(ticketGoal)],
+    ["Meta mínima 15000", String(minTicketGoal)],
+    ["Clientes únicos", String(s.uniqueCustomers)],
+    ["Comisiones generadas (CLP)", String(s.commissionsEarnedClp)],
+    ["Comisiones pagadas (CLP)", String(s.commissionsPaidClp)],
+    ["Ingreso neto post-comisiones (CLP)", String(s.netAfterCommissionsClp)],
+  ];
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -201,6 +214,12 @@ export default function AdminAnalyticsPage() {
             fija de 15.000. También ves plata cobrada, packs y códigos de
             amigos.
           </p>
+          <div className="mt-3">
+            <ExportButtons
+              filenameBase={`analitica_${from}_${to}`}
+              rows={analyticsExportRows}
+            />
+          </div>
         </div>
         <label className="block space-y-1 min-w-[220px]">
           <span className="text-[11px] text-brand-muted uppercase font-semibold tracking-wide">

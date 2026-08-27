@@ -270,7 +270,7 @@ export function OrderLookupCard() {
                 ))}
                 <li className="list-none pt-1">
                   <a
-                    href="#faq"
+                    href="/#faq"
                     className="text-[12px] font-semibold text-neutral-800 underline underline-offset-2"
                   >
                     Ver todas las preguntas
@@ -315,7 +315,10 @@ export function OrderLookupCard() {
             </a>
 
             <a
-              href={process.env.NEXT_PUBLIC_TIKTOK_URL || "https://tiktok.com"}
+              href={
+                process.env.NEXT_PUBLIC_TIKTOK_URL ||
+                "https://www.tiktok.com/@suertu2s"
+              }
               target="_blank"
               rel="noopener noreferrer"
               aria-label="TikTok"

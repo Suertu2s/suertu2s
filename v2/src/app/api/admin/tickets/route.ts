@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthorized, parseDateRange } from "@/lib/admin/auth";
+import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
 import { listOrders, listTickets } from "@/lib/db/orders";
 
 export async function GET(req: NextRequest) {
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const { from, to } = parseDateRange(req);
     const q = (req.nextUrl.searchParams.get("q") || "").toLowerCase().trim();
     const [tickets, orders] = await Promise.all([listTickets(), listOrders()]);

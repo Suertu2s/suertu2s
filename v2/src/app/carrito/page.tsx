@@ -1,7 +1,5 @@
-"use client";
-
-import { CheckoutView } from "@/components/checkout/CheckoutView";
+import { redirect } from "next/navigation";
 
 export default function CarritoPage() {
-  return <CheckoutView />;
+  redirect("/checkout");
 }

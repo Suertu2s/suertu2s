@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatClp, getPackById } from "@/data/packs";
 import { useAdmin } from "@/components/admin/AdminContext";
 import {
@@ -29,6 +30,15 @@ type OrderDetail = {
 const PAGE_SIZE = 15;
 
 export default function AdminOrdersPage() {
+  return (
+    <Suspense fallback={<p className="text-brand-muted text-sm">Cargando pedidos…</p>}>
+      <AdminOrdersContent />
+    </Suspense>
+  );
+}
+
+function AdminOrdersContent() {
+  const searchParams = useSearchParams();
   const { authed, adminFetch, readJson, setError, refreshKey, from, to } =
     useAdmin();
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -37,6 +47,12 @@ export default function AdminOrdersPage() {
   const [provider, setProvider] = useState("all");
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (id) setSelectedId(id);
+  }, [searchParams]);
+
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);

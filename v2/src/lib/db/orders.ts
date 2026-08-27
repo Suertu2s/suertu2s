@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { RAFFLE } from "@/data/packs";
 import { assertRaffleAcceptsOrders } from "@/lib/catalog/orders-guard";
-import { getPackById } from "@/lib/catalog/store";
+import { getPackById, getRaffle } from "@/lib/catalog/store";
 import { hashPassword } from "@/lib/security/password";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
 import {
@@ -39,6 +39,8 @@ import type {
 } from "./types";
 
 const RAFFLE_UUID = "a0000000-0000-4000-8000-000000000001";
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PACK_UUID: Record<string, string> = {
   "pack-puerto-montt": "b0000000-0000-4000-8000-000000000001",
@@ -173,6 +175,7 @@ async function resolveAffiliateId(code?: string) {
     return {
       affiliateId: null as string | null,
       code: null as string | null,
+      valid: true as boolean,
     };
   }
   const normalized = code.toUpperCase().trim();
@@ -190,14 +193,110 @@ async function resolveAffiliateId(code?: string) {
       return {
         affiliateId: String(data.id),
         code: String(data.code),
+        valid: true,
       };
     }
-    return { affiliateId: null, code: normalized };
+    return { affiliateId: null, code: normalized, valid: false };
   }
 
   const { memoryFindAffiliateByCode } = await import("./memory");
   const aff = memoryFindAffiliateByCode(normalized);
-  return { affiliateId: aff?.id ?? null, code: normalized };
+  return {
+    affiliateId: aff?.id ?? null,
+    code: normalized,
+    valid: Boolean(aff),
+  };
+}
+
+/** Busca afiliado activo por nombre (coincidencia parcial). */
+async function resolveAffiliateByName(name?: string) {
+  if (!name?.trim()) {
+    return {
+      affiliateId: null as string | null,
+      code: null as string | null,
+      valid: true as boolean,
+    };
+  }
+  const query = name.trim();
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from("affiliates")
+      .select("id, code, name")
+      .eq("active", true)
+      .ilike("name", `%${query}%`)
+      .limit(2);
+
+    if (!data?.length) {
+      return { affiliateId: null, code: null, valid: false };
+    }
+    if (data.length > 1) {
+      return {
+        affiliateId: null,
+        code: null,
+        valid: false,
+        ambiguous: true as const,
+      };
+    }
+    return {
+      affiliateId: String(data[0].id),
+      code: String(data[0].code),
+      valid: true,
+    };
+  }
+
+  const affiliates = await listAffiliates();
+  const matches = affiliates.filter(
+    (a) => a.active && a.name.toLowerCase().includes(query.toLowerCase()),
+  );
+  if (matches.length !== 1) {
+    return {
+      affiliateId: null,
+      code: null,
+      valid: false,
+      ambiguous: matches.length > 1,
+    };
+  }
+  return {
+    affiliateId: matches[0].id,
+    code: matches[0].code,
+    valid: true,
+  };
+}
+
+export async function validateReferralCode(code: string) {
+  const result = await resolveAffiliateId(code);
+  return { valid: result.valid, code: result.code };
+}
+
+export async function searchAffiliatesByName(name: string) {
+  const query = name.trim();
+  if (!query || query.length < 2) return [];
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from("affiliates")
+      .select("id, code, name")
+      .eq("active", true)
+      .ilike("name", `%${query}%`)
+      .order("name")
+      .limit(8);
+    return (data || []).map((row) => ({
+      id: String(row.id),
+      code: String(row.code),
+      name: String(row.name),
+    }));
+  }
+
+  const affiliates = await listAffiliates();
+  return affiliates
+    .filter(
+      (a) => a.active && a.name.toLowerCase().includes(query.toLowerCase()),
+    )
+    .slice(0, 8)
+    .map((a) => ({ id: a.id, code: a.code, name: a.name }));
 }
 
 export async function createOrder(input: CheckoutInput) {
@@ -233,7 +332,30 @@ export async function createOrder(input: CheckoutInput) {
 
   if (!lines.length) throw new Error("Carrito vacío");
 
-  const referral = await resolveAffiliateId(input.referralCode);
+  let referral = await resolveAffiliateId(input.referralCode);
+  if (!input.referralCode?.trim() && input.referralName?.trim()) {
+    const byName = await resolveAffiliateByName(input.referralName);
+    if (byName.valid && byName.code) {
+      referral = {
+        affiliateId: byName.affiliateId,
+        code: byName.code,
+        valid: true,
+      };
+    } else if (!byName.valid) {
+      throw new Error(
+        byName.ambiguous
+          ? "Hay varios embajadores con ese nombre. Usa el código exacto."
+          : "No encontramos un embajador con ese nombre.",
+      );
+    }
+  } else if (input.referralCode?.trim() && !referral.valid) {
+    throw new Error("El código de embajador no es válido o está inactivo.");
+  }
+
+  const activeRaffleId = getRaffle().id;
+  const raffleUuid = UUID_REGEX.test(activeRaffleId)
+    ? activeRaffleId
+    : RAFFLE_UUID;
   const orderId = randomUUID();
   const createdAt = new Date().toISOString();
 
@@ -250,7 +372,7 @@ export async function createOrder(input: CheckoutInput) {
       status: "pending",
       payment_provider: input.provider,
       total_clp: total,
-      raffle_id: RAFFLE_UUID,
+      raffle_id: raffleUuid,
       referral_code: referral.code,
       referral_name: input.referralName?.trim() || null,
       affiliate_id: referral.affiliateId,
@@ -522,18 +644,48 @@ function ensureDemoSeed() {
   if (!isDbActive()) memorySeedDemoSales();
 }
 
+async function fetchAllRows<T>(
+  table: string,
+  select: string,
+  orderCol: string,
+  ascending = false,
+): Promise<T[]> {
+  const supabase = getSupabaseAdmin();
+  const pageSize = 1000;
+  const all: T[] = [];
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .order(orderCol, { ascending })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      throw new Error(`Error al listar ${table}: ${error.message}`);
+    }
+
+    const batch = (data || []) as T[];
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return all;
+}
+
 export async function listOrders() {
   ensureDemoSeed();
 
   if (isSupabaseConfigured()) {
-    const supabase = getSupabaseAdmin();
-    const { data } = await supabase
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1000);
-
-    return (data || []).map(mapOrder);
+    const data = await fetchAllRows<Record<string, unknown>>(
+      "orders",
+      "*",
+      "created_at",
+      false,
+    );
+    return data.map(mapOrder);
   }
 
   return memoryListOrders();
@@ -543,9 +695,13 @@ export async function listOrderItems() {
   ensureDemoSeed();
 
   if (isSupabaseConfigured()) {
-    const supabase = getSupabaseAdmin();
-    const { data } = await supabase.from("order_items").select("*").limit(5000);
-    return (data || []).map(mapOrderItem);
+    const data = await fetchAllRows<Record<string, unknown>>(
+      "order_items",
+      "*",
+      "id",
+      true,
+    );
+    return data.map(mapOrderItem);
   }
 
   return memoryListOrderItems();
@@ -555,14 +711,13 @@ export async function listTickets() {
   ensureDemoSeed();
 
   if (isSupabaseConfigured()) {
-    const supabase = getSupabaseAdmin();
-    const { data } = await supabase
-      .from("tickets")
-      .select("*")
-      .order("number", { ascending: false })
-      .limit(5000);
-
-    return (data || []).map(mapTicket);
+    const data = await fetchAllRows<Record<string, unknown>>(
+      "tickets",
+      "*",
+      "number",
+      false,
+    );
+    return data.map(mapTicket);
   }
 
   return memoryListTickets();

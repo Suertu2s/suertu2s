@@ -204,42 +204,46 @@ export function buildAffiliateStats(
   from: Date,
   to: Date,
 ): AffiliateStat[] {
-  const paid = filterOrdersByRange(orders, from, to, true);
+  const paidInRange = filterOrdersByRange(orders, from, to, true);
+  const allPaid = orders.filter((o) => o.status === "paid");
 
   return affiliates
     .map((affiliate) => {
       const code = affiliate.code.toUpperCase();
-      const related = paid.filter(
+      const relatedInRange = paidInRange.filter(
         (o) =>
           o.affiliate_id === affiliate.id ||
           (o.referral_code || "").toUpperCase() === code,
       );
-      const salesClp = related.reduce((acc, o) => acc + o.total_clp, 0);
-      const commissionEarnedClp = related.reduce(
+      const relatedLifetime = allPaid.filter(
+        (o) =>
+          o.affiliate_id === affiliate.id ||
+          (o.referral_code || "").toUpperCase() === code,
+      );
+
+      const salesClp = relatedInRange.reduce((acc, o) => acc + o.total_clp, 0);
+      const commissionEarnedLifetime = relatedLifetime.reduce(
         (acc, o) => acc + calcCommission(o.total_clp, affiliate),
         0,
       );
-      const commissionPaidClp = payouts
+      const commissionPaidLifetime = payouts
         .filter((p) => p.affiliate_id === affiliate.id)
-        .filter((p) => {
-          const t = new Date(p.paid_at).getTime();
-          return t >= from.getTime() && t <= to.getTime();
-        })
         .reduce((acc, p) => acc + p.amount_clp, 0);
 
-      const last = related
+      const last = relatedInRange
         .map((o) => o.paid_at || o.created_at)
         .sort()
         .at(-1);
 
       return {
         affiliate,
-        uses: related.length,
-        ordersPaid: related.length,
+        uses: relatedInRange.length,
+        ordersPaid: relatedInRange.length,
         salesClp,
-        commissionEarnedClp,
-        commissionPaidClp,
-        commissionBalanceClp: commissionEarnedClp - commissionPaidClp,
+        commissionEarnedClp: commissionEarnedLifetime,
+        commissionPaidClp: commissionPaidLifetime,
+        commissionBalanceClp:
+          commissionEarnedLifetime - commissionPaidLifetime,
         lastUsedAt: last || null,
       };
     })

@@ -227,4 +227,4 @@ npm run quality
 ## 📄 Licencia y Créditos
 
 Desarrollado con dedicación para **Suertu2s**. Todos los derechos reservados © 2026.
-Para soporte técnico o consultas comerciales, contacta a [contacto@suertu2s.com](mailto:contacto@suertu2s.com).
+Para soporte técnico o consultas comerciales, contacta a [contacto@suertu2s.cl](mailto:contacto@suertu2s.cl).

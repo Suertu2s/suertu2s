@@ -84,10 +84,10 @@ export default function AdminDashboardPage() {
         },
         {
           label: "Link del live",
-          ok: ops.liveStreamConfigured,
+          ok: true,
           detail: ops.liveStreamConfigured
             ? "Configurado"
-            : "Sin enlace en Ajustes",
+            : "Opcional — agrégalo en Ajustes antes del sorteo en vivo",
         },
         {
           label: "Estado del sorteo",

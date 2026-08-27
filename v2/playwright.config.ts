@@ -1,10 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3456);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/live.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -29,6 +30,7 @@ export default defineConfig({
         timeout: 120_000,
         env: {
           ...process.env,
+          PORT: String(PORT),
           ADMIN_EMAILS: process.env.ADMIN_EMAILS || "admin@suertu2s.cl",
           ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "suertu2s-admin-dev",
           ADMIN_SESSION_SECRET:

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthorized, parseDateRange } from "@/lib/admin/auth";
 import { filterOrdersByRange } from "@/lib/admin/analytics";
+import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
 import {
   fulfillOrder,
   getOrder,
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const { from, to } = parseDateRange(req);
     const status = req.nextUrl.searchParams.get("status");
     const referral = req.nextUrl.searchParams.get("referral");
@@ -68,6 +70,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const body = (await req.json()) as { id?: string; action?: string };
     if (
       !body.id ||
@@ -101,10 +104,11 @@ export async function PATCH(req: NextRequest) {
           { status: 404 },
         );
       }
-      if (current.status !== "pending") {
+      if (current.status !== "pending" && current.status !== "failed") {
         return NextResponse.json(
           {
-            error: "Solo se pueden marcar como pagados los pedidos pendientes",
+            error:
+              "Solo se pueden marcar como pagados los pedidos pendientes o fallidos",
           },
           { status: 400 },
         );

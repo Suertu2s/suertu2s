@@ -135,7 +135,7 @@ export function Hero() {
   return (
     <div className="relative w-full bg-[#030a05] overflow-hidden">
       {/* Showroom Background Image - Preserves full 16:9 composition matching Screenshot 2 */}
-      <div className="relative w-full aspect-[16/9] min-h-[500px] max-h-[88vh] flex items-center justify-center overflow-hidden mx-auto">
+      <div className="relative w-full aspect-[16/9] min-h-[280px] sm:min-h-[380px] md:min-h-[500px] max-h-[88vh] flex items-center justify-center overflow-hidden mx-auto">
         <img
           src="/images/suertus2.webp"
           alt="Suertu2s"

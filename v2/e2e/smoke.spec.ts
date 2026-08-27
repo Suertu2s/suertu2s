@@ -9,7 +9,11 @@ test.describe("smoke", () => {
     await expect(page.locator("#comprar")).toBeVisible();
   });
 
-  test("admin login y dashboard", async ({ page }) => {
+  test("admin login y dashboard", async ({ page, baseURL }) => {
+    test.skip(
+      baseURL?.includes("suertu2s.cl") ?? false,
+      "No ejecutar login admin contra producción",
+    );
     await page.goto("/admin");
     await page.getByPlaceholder("admin@suertu2s.cl").fill("admin@suertu2s.cl");
     await page
@@ -17,7 +21,7 @@ test.describe("smoke", () => {
       .fill(process.env.ADMIN_PASSWORD || "suertu2s-admin-dev");
     await page.getByRole("button", { name: /entrar/i }).click();
     await expect(
-      page.getByRole("heading", { name: /dashboard/i }),
+      page.getByRole("heading", { name: /resumen/i }),
     ).toBeVisible();
     await expect(page.getByText(/ingresos pagados/i)).toBeVisible();
   });

@@ -132,7 +132,7 @@ export default function AdminTicketsPage() {
                   </td>
                   <td className="px-3 py-2.5">
                     <Link
-                      href="/admin/orders"
+                      href={`/admin/orders?id=${encodeURIComponent(t.order_id)}`}
                       className="text-brand-greenBright text-xs no-underline font-semibold"
                       title={t.order_id}
                     >

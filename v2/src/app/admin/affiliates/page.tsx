@@ -227,7 +227,7 @@ export default function AdminAffiliatesPage() {
             label="Contraseña portal (crear o cambiar)"
             value={affForm.password}
             onChange={(v) => setAffForm((f) => ({ ...f, password: v }))}
-            type="text"
+            type="password"
             placeholder="Mín. 6 caracteres"
           />
           <div className="flex flex-wrap gap-2">

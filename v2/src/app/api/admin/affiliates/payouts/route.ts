@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAdminAuthorized } from "@/lib/admin/auth";
-import { createPayout, listAffiliates, listPayouts } from "@/lib/db/orders";
+import { buildAffiliateStats } from "@/lib/admin/analytics";
+import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
+import {
+  createPayout,
+  listAffiliates,
+  listOrders,
+  listPayouts,
+} from "@/lib/db/orders";
 
 export async function GET(req: NextRequest) {
   if (!isAdminAuthorized(req)) {
@@ -9,6 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const [payouts, affiliates] = await Promise.all([
       listPayouts(),
       listAffiliates(),
@@ -42,7 +50,50 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const body = schema.parse(await req.json());
+
+    const [affiliates, orders, payouts] = await Promise.all([
+      listAffiliates(),
+      listOrders(),
+      listPayouts(),
+    ]);
+    const stats = buildAffiliateStats(
+      affiliates,
+      orders,
+      payouts,
+      new Date(0),
+      new Date(),
+    );
+    const stat = stats.find((s) => s.affiliate.id === body.affiliate_id);
+    if (!stat) {
+      return NextResponse.json(
+        { error: "Afiliado no encontrado" },
+        { status: 404 },
+      );
+    }
+    if (body.amount_clp > stat.commissionBalanceClp) {
+      return NextResponse.json(
+        {
+          error: `El monto excede el saldo disponible (${stat.commissionBalanceClp} CLP)`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const duplicate = payouts.some(
+      (p) =>
+        p.affiliate_id === body.affiliate_id &&
+        p.period_from === body.period_from &&
+        p.period_to === body.period_to,
+    );
+    if (duplicate) {
+      return NextResponse.json(
+        { error: "Ya existe una liquidación para ese período" },
+        { status: 400 },
+      );
+    }
+
     const payout = await createPayout(body);
     return NextResponse.json({ payout });
   } catch (error) {

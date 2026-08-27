@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test --config=playwright.live.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "quality": "npm run typecheck && npm run lint && npm run format:check && npm run test",
     "secretlint": "secretlint \"**/*\"",

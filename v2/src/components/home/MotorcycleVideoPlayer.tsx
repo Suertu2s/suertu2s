@@ -3,10 +3,13 @@
 import { useRef, useState } from "react";
 import { getAssetPath } from "@/lib/assets";
 
+const FALLBACK_IMAGE = "/suertu2s_moto_hero.jpg";
+
 export function MotorcycleVideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   const videoSrc = getAssetPath("/moto_fondo_desenfocado.mp4");
 
@@ -16,7 +19,7 @@ export function MotorcycleVideoPlayer() {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      videoRef.current.play();
+      void videoRef.current.play();
       setIsPlaying(true);
     }
   };
@@ -27,26 +30,37 @@ export function MotorcycleVideoPlayer() {
     setIsMuted(!isMuted);
   };
 
+  if (videoFailed) {
+    return (
+      <div className="relative w-full max-w-[380px] aspect-square mx-auto">
+        <div className="relative aspect-square w-full rounded-[32px] overflow-hidden glass-card border border-white/12 shadow-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={FALLBACK_IMAGE}
+            alt="MOTORRAD CORSA R150 2026"
+            className="w-full h-full object-cover"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full max-w-[380px] aspect-square mx-auto cursor-pointer group">
-      {/* Apple Specular Ambient Glow */}
       <div className="absolute inset-0 bg-gradient-to-tr from-brand-greenBright/30 via-brand-gold/20 to-brand-greenBright/30 rounded-[32px] filter blur-2xl opacity-60 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
 
-      {/* Main Glass Card */}
       <div className="relative aspect-square w-full h-full rounded-[32px] overflow-hidden glass-card border border-white/12 p-2 shadow-xl transition-all duration-500 group-hover:border-brand-greenBright/50 group-hover:shadow-[0_20px_50px_rgba(54,240,115,0.2)]">
-        {/* Inner Video Container */}
         <div className="relative w-full h-full rounded-[24px] overflow-hidden bg-black/90 flex items-center justify-center">
-          {/* Ambient blurred background for letterboxing effect */}
           <video
             src={videoSrc}
             autoPlay
             loop
             muted
             playsInline
+            onError={() => setVideoFailed(true)}
             className="absolute inset-0 w-full h-full object-cover filter blur-xl opacity-40 pointer-events-none"
           />
 
-          {/* Main Video Frame */}
           <video
             ref={videoRef}
             src={videoSrc}
@@ -54,15 +68,13 @@ export function MotorcycleVideoPlayer() {
             loop
             muted={isMuted}
             playsInline
+            onError={() => setVideoFailed(true)}
             className="relative z-10 w-full h-full object-cover"
           />
 
-          {/* Vignette Overlay */}
           <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
-          {/* Bottom Apple Control Capsule */}
           <div className="absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between pointer-events-auto">
-            {/* Play/Pause Button */}
             <button
               onClick={togglePlay}
               type="button"
@@ -70,25 +82,16 @@ export function MotorcycleVideoPlayer() {
               aria-label={isPlaying ? "Pausar video" : "Reproducir video"}
             >
               {isPlaying ? (
-                <svg
-                  className="w-4 h-4"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                 </svg>
               ) : (
-                <svg
-                  className="w-4 h-4"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
               )}
             </button>
 
-            {/* Mute/Unmute Capsule Button */}
             <button
               onClick={toggleMute}
               type="button"

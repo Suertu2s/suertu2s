@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Mode = "code" | "name";
+
+type AffiliateResult = {
+  id: string;
+  code: string;
+  name: string;
+};
 
 type Props = {
   code: string;
@@ -80,6 +86,72 @@ export function ReferralBox({
   locked = false,
 }: Props) {
   const [mode, setMode] = useState<Mode>("code");
+  const [codeStatus, setCodeStatus] = useState<
+    "idle" | "checking" | "valid" | "invalid"
+  >("idle");
+  const [nameResults, setNameResults] = useState<AffiliateResult[]>([]);
+  const [nameStatus, setNameStatus] = useState<
+    "idle" | "searching" | "found" | "none" | "many"
+  >("idle");
+
+  useEffect(() => {
+    if (locked || !code.trim()) {
+      setCodeStatus("idle");
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setCodeStatus("checking");
+      try {
+        const res = await fetch("/api/affiliates/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code.trim() }),
+        });
+        const data = (await res.json()) as { valid?: boolean };
+        setCodeStatus(data.valid ? "valid" : "invalid");
+      } catch {
+        setCodeStatus("idle");
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [code, locked]);
+
+  useEffect(() => {
+    if (locked || mode !== "name" || nameQuery.trim().length < 2) {
+      setNameResults([]);
+      setNameStatus("idle");
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setNameStatus("searching");
+      try {
+        const res = await fetch(
+          `/api/affiliates/search?q=${encodeURIComponent(nameQuery.trim())}`,
+        );
+        const data = (await res.json()) as { results?: AffiliateResult[] };
+        const results = data.results || [];
+        setNameResults(results);
+        if (results.length === 0) setNameStatus("none");
+        else if (results.length > 1) setNameStatus("many");
+        else setNameStatus("found");
+      } catch {
+        setNameStatus("idle");
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [nameQuery, mode, locked]);
+
+  function pickAffiliate(aff: AffiliateResult) {
+    onCodeChange(aff.code);
+    onNameChange(aff.name);
+    setNameResults([]);
+    setMode("code");
+    setCodeStatus("valid");
+  }
 
   return (
     <div
@@ -175,7 +247,11 @@ export function ReferralBox({
                 : "rgba(0, 0, 0, 0.4)",
               border: locked
                 ? "1px solid rgba(54, 240, 115, 0.35)"
-                : "1px solid rgba(255, 255, 255, 0.15)",
+                : codeStatus === "invalid"
+                  ? "1px solid rgba(239, 68, 68, 0.6)"
+                  : codeStatus === "valid"
+                    ? "1px solid rgba(54, 240, 115, 0.5)"
+                    : "1px solid rgba(255, 255, 255, 0.15)",
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
               letterSpacing: "1.5px",
             }}
@@ -188,25 +264,75 @@ export function ReferralBox({
               afiliado.
             </p>
           )}
+          {!locked && code.trim() && codeStatus === "checking" && (
+            <p className="m-0 text-[12px] text-white/50">Verificando código…</p>
+          )}
+          {!locked && code.trim() && codeStatus === "invalid" && (
+            <p className="m-0 text-[12px] text-red-300">
+              Código no válido o embajador inactivo.
+            </p>
+          )}
+          {!locked && code.trim() && codeStatus === "valid" && (
+            <p className="m-0 text-[12px] text-[#36f073]">
+              Código verificado correctamente.
+            </p>
+          )}
         </label>
       ) : (
-        <label className="block space-y-2">
-          <span className="block text-[14px] text-white/90 font-normal">
-            Busca el nombre del embajador o vendedor
-          </span>
-          <input
-            type="text"
-            value={nameQuery}
-            onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Ej: Juan Pérez"
-            className="w-full h-12 rounded-xl px-4 text-[15px] text-white outline-none"
-            style={{
-              backgroundColor: "rgba(0, 0, 0, 0.4)",
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-            }}
-            autoComplete="off"
-          />
-        </label>
+        <div className="block space-y-2">
+          <label className="block space-y-2">
+            <span className="block text-[14px] text-white/90 font-normal">
+              Busca el nombre del embajador o vendedor
+            </span>
+            <input
+              type="text"
+              value={nameQuery}
+              onChange={(e) => onNameChange(e.target.value)}
+              placeholder="Ej: Juan Pérez"
+              className="w-full h-12 rounded-xl px-4 text-[15px] text-white outline-none"
+              style={{
+                backgroundColor: "rgba(0, 0, 0, 0.4)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+              }}
+              autoComplete="off"
+            />
+          </label>
+          {nameStatus === "searching" && (
+            <p className="m-0 text-[12px] text-white/50">Buscando…</p>
+          )}
+          {nameStatus === "none" && (
+            <p className="m-0 text-[12px] text-red-300">
+              No encontramos embajadores con ese nombre.
+            </p>
+          )}
+          {nameStatus === "many" && nameResults.length > 0 && (
+            <ul className="m-0 p-0 list-none space-y-1.5">
+              {nameResults.map((aff) => (
+                <li key={aff.id}>
+                  <button
+                    type="button"
+                    onClick={() => pickAffiliate(aff)}
+                    className="w-full text-left rounded-lg px-3 py-2.5 bg-black/40 border border-white/10 text-white text-sm hover:border-[#36f073]/40 cursor-pointer"
+                  >
+                    <span className="font-semibold">{aff.name}</span>
+                    <span className="ml-2 font-mono text-[#f7c64b] text-xs">
+                      {aff.code}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {nameStatus === "found" && nameResults[0] && (
+            <button
+              type="button"
+              onClick={() => pickAffiliate(nameResults[0])}
+              className="text-[12px] text-[#36f073] bg-transparent border-none cursor-pointer p-0 underline"
+            >
+              Usar {nameResults[0].name} ({nameResults[0].code})
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

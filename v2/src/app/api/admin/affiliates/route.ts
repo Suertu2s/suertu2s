@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAdminAuthorized, parseDateRange } from "@/lib/admin/auth";
+import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
 import {
   buildAffiliateStats,
   buildOrphanReferralStats,
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureCatalogSynced();
     const { from, to } = parseDateRange(req);
     const [affiliates, orders, payouts] = await Promise.all([
       listAffiliates(),
