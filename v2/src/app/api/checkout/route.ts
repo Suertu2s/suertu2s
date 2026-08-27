@@ -11,6 +11,7 @@ import { createFlowPayment } from "@/lib/payments/flow";
 import { isMockProviderAllowed } from "@/lib/payments/mock-guard";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 import { logServerError, publicError } from "@/lib/security/errors";
+import { isValidCheckoutPhone } from "@/lib/validation/phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,14 @@ const schema = z.object({
   email: z.string().email(),
   fullName: z.string().min(2).max(120),
   rut: z.string().min(3).max(32),
-  phone: z.string().min(3).max(32),
+  phone: z
+    .string()
+    .trim()
+    .min(1, "El teléfono es obligatorio")
+    .max(32)
+    .refine(isValidCheckoutPhone, {
+      message: "Ingresa un teléfono válido (mínimo 8 dígitos)",
+    }),
   provider: z.enum(["flow", "mock"]),
   referralCode: z.string().max(32).optional(),
   referralName: z.string().max(120).optional(),

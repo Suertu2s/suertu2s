@@ -4,6 +4,7 @@ import {
   buildCustomers,
   buildSalesKpis,
   calcCommission,
+  compareAffiliateStatsBySales,
   filterOrdersByRange,
 } from "./analytics";
 import type { DbAffiliate, DbAffiliatePayout, DbOrder } from "@/lib/db/types";
@@ -111,6 +112,41 @@ describe("buildAffiliateStats", () => {
     expect(stat.commissionEarnedClp).toBe(1000);
     expect(stat.commissionPaidClp).toBe(400);
     expect(stat.commissionBalanceClp).toBe(600);
+  });
+
+  it("ordena afiliados por ventas del período (mayor primero)", () => {
+    const from = new Date("2026-08-01T00:00:00.000Z");
+    const to = new Date("2026-08-31T23:59:59.999Z");
+    const affA: DbAffiliate = {
+      ...affiliate,
+      id: "aff-a",
+      code: "AAA",
+      name: "Bajo",
+    };
+    const affB: DbAffiliate = {
+      ...affiliate,
+      id: "aff-b",
+      code: "BBB",
+      name: "Alto",
+    };
+    const orders = [
+      order({
+        id: "1",
+        affiliate_id: "aff-a",
+        referral_code: "AAA",
+        total_clp: 5000,
+      }),
+      order({
+        id: "2",
+        affiliate_id: "aff-b",
+        referral_code: "BBB",
+        total_clp: 20000,
+      }),
+    ];
+
+    const stats = buildAffiliateStats([affA, affB], orders, [], from, to);
+    expect(stats.map((s) => s.affiliate.code)).toEqual(["BBB", "AAA"]);
+    expect(compareAffiliateStatsBySales(stats[0], stats[1])).toBeLessThan(0);
   });
 });
 

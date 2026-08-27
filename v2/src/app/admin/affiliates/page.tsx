@@ -174,6 +174,7 @@ export default function AdminAffiliatesPage() {
           filenameBase={`afiliados_${from}_${to}`}
           rows={[
             [
+              "ranking",
               "codigo",
               "nombre",
               "usos",
@@ -183,7 +184,8 @@ export default function AdminAffiliatesPage() {
               "saldo",
               "regla",
             ],
-            ...stats.map((s) => [
+            ...stats.map((s, index) => [
+              String(index + 1),
               s.affiliate.code,
               s.affiliate.name,
               String(s.uses),
@@ -323,11 +325,12 @@ export default function AdminAffiliatesPage() {
         </div>
       </form>
 
-      <Panel title="Uso y saldo por afiliado">
+      <Panel title="Ranking de colaboradores (por ventas)">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-brand-muted text-[11px] uppercase">
               <tr>
+                <th className="px-3 py-2 w-10">#</th>
                 <th className="px-3 py-2">Código</th>
                 <th className="px-3 py-2">Usos</th>
                 <th className="px-3 py-2">Ventas</th>
@@ -339,8 +342,11 @@ export default function AdminAffiliatesPage() {
               </tr>
             </thead>
             <tbody>
-              {stats.map((s) => (
+              {stats.map((s, index) => (
                 <tr key={s.affiliate.id} className="border-t border-white/5">
+                  <td className="px-3 py-2.5 text-brand-gold font-black tabular-nums">
+                    {index + 1}
+                  </td>
                   <td className="px-3 py-2.5">
                     <div className="text-brand-greenBright font-bold">
                       {s.affiliate.code}
@@ -375,7 +381,7 @@ export default function AdminAffiliatesPage() {
               ))}
               {!stats.length && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <EmptyState title="Sin afiliados" />
                   </td>
                 </tr>

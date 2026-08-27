@@ -197,6 +197,18 @@ export type AffiliateStat = {
   lastUsedAt: string | null;
 };
 
+export function compareAffiliateStatsBySales(
+  a: AffiliateStat,
+  b: AffiliateStat,
+): number {
+  if (b.salesClp !== a.salesClp) return b.salesClp - a.salesClp;
+  if (b.uses !== a.uses) return b.uses - a.uses;
+  if (b.commissionEarnedClp !== a.commissionEarnedClp) {
+    return b.commissionEarnedClp - a.commissionEarnedClp;
+  }
+  return a.affiliate.code.localeCompare(b.affiliate.code, "es");
+}
+
 export function buildAffiliateStats(
   affiliates: DbAffiliate[],
   orders: DbOrder[],
@@ -247,7 +259,7 @@ export function buildAffiliateStats(
         lastUsedAt: last || null,
       };
     })
-    .sort((a, b) => b.commissionBalanceClp - a.commissionBalanceClp);
+    .sort(compareAffiliateStatsBySales);
 }
 
 /** @deprecated alias — commissionOwedClp maps to balance for older callers */

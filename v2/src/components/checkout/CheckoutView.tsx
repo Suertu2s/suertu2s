@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { formatClp } from "@/data/packs";
+import { isValidCheckoutPhone } from "@/lib/validation/phone";
 import { useCatalog } from "@/hooks/useCatalog";
 import { isReferralCodeLocked, readReferralCode } from "@/lib/referral/storage";
 import type { PaymentProvider } from "@/lib/db/types";
@@ -166,6 +167,11 @@ export function CheckoutView() {
       return;
     }
 
+    if (!isValidCheckoutPhone(phone)) {
+      setError("Ingresa un teléfono de contacto válido (mínimo 8 dígitos).");
+      return;
+    }
+
     setLoading(true);
 
     const localName = fullName.trim() || email.split("@")[0] || "Participante";
@@ -200,7 +206,7 @@ export function CheckoutView() {
           email,
           fullName: localName,
           rut: rut.trim() || "s/n",
-          phone: phone.trim() || "s/n",
+          phone: phone.trim(),
           provider,
           referralCode: codeToSend,
           referralName: referralLocked
@@ -339,10 +345,11 @@ export function CheckoutView() {
             </label>
             <label className="block">
               <span className="block mb-2 text-[14px] font-semibold text-white/80">
-                Teléfono (opcional)
+                Teléfono
               </span>
               <input
                 type="tel"
+                required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full rounded-lg px-4 py-[0.8rem] text-[15px] text-white outline-none"
@@ -351,6 +358,7 @@ export function CheckoutView() {
                   border: "1px solid rgba(255, 255, 255, 0.08)",
                 }}
                 placeholder="+56 9 1234 5678"
+                autoComplete="tel"
               />
             </label>
           </div>
