@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { ContactFab } from "@/components/layout/ContactFab";
 import { ScrollReveal } from "@/components/layout/ScrollReveal";
 import { SmoothScroll } from "@/components/layout/SmoothScroll";
+import { CookieConsent } from "@/components/layout/CookieConsent";
 import { GoldenCloverEffect } from "@/components/ui/GoldenCloverEffect";
 import { LivePurchaseToast } from "@/components/ui/LivePurchaseToast";
 import { ReferralCapture } from "@/components/referral/ReferralCapture";
@@ -91,6 +92,7 @@ export default function RootLayout({
         <Footer />
         <ContactFab />
         <LivePurchaseToast />
+        <CookieConsent />
         <GoldenCloverEffect />
       </body>
     </html>

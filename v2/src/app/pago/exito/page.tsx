@@ -26,7 +26,6 @@ type ConfirmPayload = {
 function ExitoContent() {
   const params = useSearchParams();
   const orderId = params.get("orderId");
-  const token = params.get("token");
   const initiallyPending = params.get("pending") === "1";
   const [pending, setPending] = useState(initiallyPending);
   const [confirming, setConfirming] = useState(initiallyPending);
@@ -75,12 +74,26 @@ function ExitoContent() {
     const tick = async () => {
       attempts += 1;
       try {
+        const storedEmail =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(`order_email_${orderId}`)
+            : null;
+        if (!storedEmail) {
+          if (attempts >= maxAttempts) {
+            setConfirming(false);
+            setMessage(
+              "Tu pago está en confirmación. Revisa tu correo en unos minutos.",
+            );
+          }
+          return;
+        }
+
         const res = await fetch("/api/payments/flow/reconcile", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orderId,
-            ...(token ? { token } : {}),
+            email: storedEmail,
           }),
         });
         const data = (await res.json()) as {
@@ -103,7 +116,6 @@ function ExitoContent() {
           if (typeof window !== "undefined") {
             const url = new URL(window.location.href);
             url.searchParams.delete("pending");
-            url.searchParams.delete("token");
             window.history.replaceState({}, "", url.toString());
           }
           return;
@@ -129,7 +141,7 @@ function ExitoContent() {
     return () => {
       cancelled = true;
     };
-  }, [initiallyPending, orderId, token]);
+  }, [initiallyPending, orderId]);
 
   const paid = Boolean(detail?.paid) && !pending;
   const missingOrder = !orderId;

@@ -236,8 +236,10 @@ export async function sendOrderConfirmation(
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const primaryFrom =
-    process.env.EMAIL_FROM || "Suertu2s <onboarding@resend.dev>";
-  const fallbackFrom = "Suertu2s <onboarding@resend.dev>";
+    process.env.EMAIL_FROM?.trim() ||
+    (process.env.NODE_ENV === "production"
+      ? `Suertu2s <${CONTACT_EMAIL}>`
+      : "Suertu2s <onboarding@resend.dev>");
   const attachments = inlineAttachments.map((a) => ({
     filename: a.filename,
     content: a.content,
@@ -255,18 +257,21 @@ export async function sendOrderConfirmation(
 
     if (result.error) {
       console.warn("[email:primary_failed]", result.error.message);
-      if (primaryFrom !== fallbackFrom) {
-        const retryResult = await resend.emails.send({
-          from: fallbackFrom,
-          to: order.email,
-          subject: `¡Pago confirmado! Tus boletos e ilustraciones Suertu2s (${safeOrderId.slice(0, 8)})`,
-          html,
-          attachments: attachments.length ? attachments : undefined,
-        });
-        if (retryResult.error) {
-          return { error: retryResult.error.message };
+      if (process.env.NODE_ENV !== "production") {
+        const fallbackFrom = "Suertu2s <onboarding@resend.dev>";
+        if (primaryFrom !== fallbackFrom) {
+          const retryResult = await resend.emails.send({
+            from: fallbackFrom,
+            to: order.email,
+            subject: `¡Pago confirmado! Tus boletos e ilustraciones Suertu2s (${safeOrderId.slice(0, 8)})`,
+            html,
+            attachments: attachments.length ? attachments : undefined,
+          });
+          if (retryResult.error) {
+            return { error: retryResult.error.message };
+          }
+          return { mocked: false, fallbackUsed: true, id: retryResult.data?.id };
         }
-        return { mocked: false, fallbackUsed: true, id: retryResult.data?.id };
       }
       return { error: result.error.message };
     }

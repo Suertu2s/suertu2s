@@ -1,4 +1,11 @@
-import { CONTACT_EMAIL } from "@/lib/site";
+import type { Metadata } from "next";
+import { CONTACT_EMAIL, LEGAL_BUSINESS_NAME } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Política de privacidad",
+  description: `Política de privacidad y tratamiento de datos de ${LEGAL_BUSINESS_NAME}.`,
+  alternates: { canonical: "/privacidad" },
+};
 
 export default function PrivacidadPage() {
   return (
@@ -41,6 +48,16 @@ export default function PrivacidadPage() {
           descritas y las obligaciones legales. Utilizamos proveedores con
           estándares de seguridad (Supabase, Flow.cl, Resend) y medidas técnicas
           razonables para proteger la información.
+        </p>
+
+        <h2 className="text-white font-title text-xl font-bold pt-2">
+          Cookies y tecnologías similares
+        </h2>
+        <p>
+          Usamos cookies técnicas para el carrito de compra, sesiones del panel
+          administrativo y portal de afiliados. No usamos cookies publicitarias de
+          terceros. Puedes gestionar cookies desde la configuración de tu
+          navegador.
         </p>
 
         <h2 className="text-white font-title text-xl font-bold pt-2">

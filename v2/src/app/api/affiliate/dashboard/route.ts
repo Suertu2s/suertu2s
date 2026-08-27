@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedAffiliate } from "@/lib/affiliate/auth";
 import { buildAffiliatePortalDashboard } from "@/lib/affiliate/dashboard";
-import { listOrders, listPayouts } from "@/lib/db/orders";
+import { listOrdersByAffiliate, listPayouts } from "@/lib/db/orders";
 import { logServerError, publicError } from "@/lib/security/errors";
 
 export const runtime = "nodejs";
@@ -23,7 +23,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [orders, payouts] = await Promise.all([listOrders(), listPayouts()]);
+    const [orders, payouts] = await Promise.all([
+      listOrdersByAffiliate(affiliate.id),
+      listPayouts(),
+    ]);
     const dashboard = buildAffiliatePortalDashboard(
       affiliate,
       orders,

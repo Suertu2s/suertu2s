@@ -22,7 +22,7 @@ const stats = [
   { value: "R150", label: "Motorrad R150" },
   { value: "2026", label: "Año del modelo" },
   { value: "100%", label: "Transferida a tu nombre" },
-  { value: "Ante notario", label: "Premiación transmitida en vivo" },
+  { value: "En vivo", label: "Premiación transmitida en vivo" },
 ];
 
 export function PrizeShowcase() {

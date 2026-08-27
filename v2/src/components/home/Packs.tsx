@@ -11,7 +11,7 @@ import { PaymentBadges } from "./PaymentBadges";
 import { Tilt3D } from "@/components/ui/Tilt3D";
 
 const TRUST_ITEMS = [
-  "Bases protocolizadas ante notario",
+  "Bases legales publicadas en esta web",
   "Pago 100% seguro con Flow",
   "Premio garantizado y entregado en transmisión en vivo",
 ];

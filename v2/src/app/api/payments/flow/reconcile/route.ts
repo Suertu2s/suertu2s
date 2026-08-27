@@ -10,12 +10,13 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({
   orderId: z.string().min(1).max(80),
+  email: z.string().email(),
   token: z.string().min(1).max(200).optional(),
 });
 
 /**
  * Reconcilia un pedido pendiente contra Flow.
- * Lo usa la página de éxito cuando el return llega antes que el webhook.
+ * Requiere email del comprador (mismo usado en checkout) para evitar abuso con orderId.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -38,6 +39,10 @@ export async function POST(req: NextRequest) {
     const order = await getOrder(body.orderId);
     if (!order) {
       return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
+    }
+
+    if (order.email.toLowerCase() !== body.email.toLowerCase().trim()) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
     if (order.status === "paid") {
@@ -71,7 +76,6 @@ export async function POST(req: NextRequest) {
         alreadyPaid: Boolean(result.alreadyPaid),
         orderId: result.orderId || order.id,
         flowStatus: result.status,
-        email: result.email,
         error: result.error,
       },
       { status: result.ok || !result.paid ? 200 : result.httpStatus || 500 },

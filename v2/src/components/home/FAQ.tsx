@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { LEGAL_BASES_SHORT } from "@/lib/site";
 
 const faqs = [
   {
     q: "¿Cómo sé cuáles son mis tickets de participación?",
-    a: "Recibirás tus ilustraciones digitales y tu ticket(s) gratuitos de participación en el premio por la moto. Cada Ticket viene constituido con 5 dígitos aleatorios (no correlativos) acompañado de la abreviatura correspondiente a la campaña activa. También puedes consultarlos en Consultar Ticket con el correo de Compra.",
+    a: "Recibirás tus ilustraciones digitales y tu ticket(s) gratuitos de participación en el premio por la moto. Cada Ticket viene constituido con 5 dígitos aleatorios (no correlativos) acompañado de la abreviatura correspondiente a la campaña activa. También puedes solicitar un enlace seguro en Consultar Ticket con el correo de compra.",
   },
   {
     q: "¿Es legal esta dinámica y premiación en Chile?",
-    a: "Sí. Comercializamos productos digitales (ilustraciones fotográficas de la Patagonia). De forma promocional y completamente legal, regalamos tickets de participación, cuyas bases están protocolizadas ante notario.",
+    a: `Sí. Comercializamos productos digitales (ilustraciones fotográficas de la Patagonia). De forma promocional y completamente legal, regalamos tickets de participación ${LEGAL_BASES_SHORT}.`,
   },
   {
     q: "¿Qué incluye la MOTORRAD CORSA R150 2026?",

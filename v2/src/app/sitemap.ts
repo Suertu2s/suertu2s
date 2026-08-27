@@ -7,16 +7,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
     "",
     "/sorteos-activos",
-    "/checkout",
     "/check-tickets",
     "/bases-legales",
     "/privacidad",
-    "/afiliados",
   ];
+
+  const builtAt = new Date();
 
   return routes.map((path) => ({
     url: `${site}${path}`,
-    lastModified: new Date(),
+    lastModified: builtAt,
     changeFrequency: path === "" ? "daily" : "weekly",
     priority: path === "" ? 1 : 0.7,
   }));

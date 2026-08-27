@@ -31,17 +31,15 @@ test.describe("rutas públicas", () => {
     ).toBeVisible();
   });
 
-  test("consultar tickets", async ({ page }) => {
+  test("consultar tickets solicita enlace seguro", async ({ page }) => {
     await page.goto("/check-tickets");
     await expect(
       page.getByRole("heading", { name: /consultar tickets/i }),
     ).toBeVisible();
-    await expect(
-      page
-        .getByPlaceholder("tu@email.com")
-        .or(page.getByLabel(/correo/i))
-        .first(),
-    ).toBeVisible();
+    await expect(page.getByPlaceholder("tu@email.com")).toBeVisible();
+    await page.getByPlaceholder("tu@email.com").fill("test@example.com");
+    await page.getByRole("button", { name: /enlace seguro/i }).click();
+    await expect(page.getByText(/enlace seguro/i).first()).toBeVisible();
   });
 
   test("/carrito redirige a /checkout", async ({ page }) => {

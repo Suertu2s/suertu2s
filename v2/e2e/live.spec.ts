@@ -17,12 +17,7 @@ test.describe("producción suertu2s.cl", () => {
     await expect(
       page.getByRole("heading", { name: /consultar tickets/i }),
     ).toBeVisible();
-    await expect(
-      page
-        .getByPlaceholder("tu@email.com")
-        .or(page.getByLabel(/correo/i))
-        .first(),
-    ).toBeVisible();
+    await expect(page.getByPlaceholder("tu@email.com")).toBeVisible();
   });
 
   test("bases legales carga", async ({ page }) => {

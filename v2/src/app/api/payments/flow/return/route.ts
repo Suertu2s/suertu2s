@@ -34,12 +34,11 @@ function resolveSiteUrl(req: NextRequest) {
 function redirectExito(
   site: string,
   orderId: string,
-  opts?: { pending?: boolean; token?: string },
+  opts?: { pending?: boolean },
 ) {
   const url = new URL(`${site}/pago/exito`);
   if (orderId) url.searchParams.set("orderId", orderId);
   if (opts?.pending) url.searchParams.set("pending", "1");
-  if (opts?.token) url.searchParams.set("token", opts.token);
   return NextResponse.redirect(url.toString());
 }
 
@@ -84,7 +83,6 @@ async function handleReturn(req: NextRequest) {
       // El cobro pudo existir: manda a éxito pendiente para reconciliar
       return redirectExito(site, byToken?.id || "", {
         pending: true,
-        token,
       });
     }
 
@@ -109,14 +107,13 @@ async function handleReturn(req: NextRequest) {
         new Error(result.error || "confirm_failed_on_paid_status"),
       );
       // Flow cobró: nunca mandar a error genérico
-      return redirectExito(site, confirmedId, { pending: true, token });
+      return redirectExito(site, confirmedId, { pending: true });
     }
 
     // 1 = pendiente: esperar webhook / reconcile
     if (flowStatus.status === 1) {
       return redirectExito(site, order?.id || orderId, {
         pending: true,
-        token,
       });
     }
 
@@ -138,7 +135,6 @@ async function handleReturn(req: NextRequest) {
       const byToken = await getOrderByPaymentExternal(token).catch(() => null);
       return redirectExito(site, byToken?.id || "", {
         pending: true,
-        token,
       });
     }
     return NextResponse.redirect(`${site}/pago/error?reason=flow_error`);

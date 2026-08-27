@@ -17,8 +17,11 @@ const jsonLd = {
     "Adquiere ilustraciones digitales de paisajes del sur de Chile y participa por una MOTORRAD CORSA R150 0km 2026.",
   brand: { "@type": "Brand", name: "Suertudos Premios" },
   offers: {
-    "@type": "Offer",
+    "@type": "AggregateOffer",
     priceCurrency: "CLP",
+    lowPrice: Math.min(...PACKS.map((p) => p.priceClp)),
+    highPrice: Math.max(...PACKS.map((p) => p.priceClp)),
+    offerCount: PACKS.length,
     availability: "https://schema.org/InStock",
     offers: PACKS.map((p) => ({
       "@type": "Offer",
@@ -26,11 +29,6 @@ const jsonLd = {
       price: p.priceClp,
       priceCurrency: "CLP",
       url: absoluteUrl("/#comprar"),
-      itemOffered: {
-        "@type": "Product",
-        name: p.name,
-        image: absoluteUrl(p.image),
-      },
     })),
   },
 };

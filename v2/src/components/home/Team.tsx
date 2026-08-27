@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { LEGAL_BASES_SHORT } from "@/lib/site";
 
 export function Team() {
   return (
@@ -45,9 +46,9 @@ export function Team() {
           </p>
           <ul className="space-y-3 mt-4">
             {[
-              "Bases 100% legales y ante notario",
+              `Bases legales publicadas ${LEGAL_BASES_SHORT}`,
               "Entrega garantizada del premio",
-              "Transmisiones en vivo para todos",
+              "Transmisión en vivo de la premiación",
             ].map((item) => (
               <li key={item} className="flex items-start gap-3">
                 <svg

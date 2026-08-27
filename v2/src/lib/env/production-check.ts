@@ -78,6 +78,34 @@ export function checkProductionEnv(): EnvIssue[] {
     });
   }
 
+  const emailFrom = process.env.EMAIL_FROM?.trim() || "";
+  if (!emailFrom || emailFrom.includes("onboarding@resend.dev")) {
+    issues.push({
+      level: "error",
+      key: "EMAIL_FROM",
+      message: "Configura un remitente verificado (ej. Suertu2s <contacto@suertu2s.cl>).",
+    });
+  }
+
+  if (
+    !process.env.AFFILIATE_SESSION_SECRET?.trim() ||
+    process.env.AFFILIATE_SESSION_SECRET === process.env.ADMIN_SESSION_SECRET
+  ) {
+    issues.push({
+      level: "warn",
+      key: "AFFILIATE_SESSION_SECRET",
+      message: "Usa un secreto dedicado para sesiones de afiliados.",
+    });
+  }
+
+  if (!process.env.SENTRY_DSN?.trim() && !process.env.NEXT_PUBLIC_SENTRY_DSN?.trim()) {
+    issues.push({
+      level: "warn",
+      key: "SENTRY_DSN",
+      message: "Sin monitoreo de errores (Sentry) en producción.",
+    });
+  }
+
   return issues;
 }
 

@@ -48,6 +48,7 @@ export default function AdminAffiliatesPage() {
     password: "",
     commission_type: "percent" as "percent" | "fixed",
     commission_value: 10,
+    active: true,
   });
   const [payoutForm, setPayoutForm] = useState({
     affiliate_id: "",
@@ -114,6 +115,7 @@ export default function AdminAffiliatesPage() {
           password: affForm.password || null,
           commission_type: affForm.commission_type,
           commission_value: Number(affForm.commission_value),
+          active: affForm.active,
         }),
       });
       await readJson(res, "Guardar afiliado");
@@ -124,6 +126,7 @@ export default function AdminAffiliatesPage() {
         password: "",
         commission_type: "percent",
         commission_value: 10,
+        active: true,
       });
       bumpRefresh();
     } catch (err) {
@@ -293,6 +296,17 @@ export default function AdminAffiliatesPage() {
           type="number"
           required
         />
+        <label className="flex items-center gap-2 text-sm text-brand-muted sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={affForm.active}
+            onChange={(e) =>
+              setAffForm((f) => ({ ...f, active: e.target.checked }))
+            }
+            className="size-4 accent-brand-greenBright"
+          />
+          Afiliado activo (acepta referidos en checkout)
+        </label>
         <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-end justify-between gap-3">
           <p className="text-xs text-brand-muted m-0 max-w-xl">
             Con email + contraseña el afiliado entra a{" "}

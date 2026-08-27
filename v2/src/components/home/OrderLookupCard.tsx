@@ -2,27 +2,23 @@
 
 import Image from "next/image";
 import { useId, useState } from "react";
+import { useTicketLookup } from "@/hooks/useTicketLookup";
+import { LEGAL_BASES_SHORT } from "@/lib/site";
 
 const faqs = [
   {
     q: "¿Cómo sé cuáles son mis tickets?",
-    a: "Recibirás tus ilustraciones digitales y tus tickets gratuitos por correo. También puedes consultarlos aquí con el correo de la compra.",
+    a: "Recibirás tus ilustraciones digitales y tus tickets gratuitos por correo. También puedes solicitar un enlace seguro aquí con el correo de la compra.",
   },
   {
     q: "¿Es legal esta dinámica en Chile?",
-    a: "Sí. Vendemos productos digitales y, de forma promocional, regalamos tickets de participación. Las bases están protocolizadas ante notario.",
+    a: `Sí. Vendemos productos digitales y, de forma promocional, regalamos tickets de participación ${LEGAL_BASES_SHORT}.`,
   },
   {
     q: "¿Qué medios de pago aceptan?",
     a: "Débito, crédito y cuenta RUT vía Flow (Webpay, Servipag y tarjetas).",
   },
 ];
-
-type Ticket = {
-  code: string;
-  number: number;
-  orderId: string;
-};
 
 function MailIcon({ className }: { className?: string }) {
   return (
@@ -101,52 +97,11 @@ function TikTokIcon({ className }: { className?: string }) {
   );
 }
 
-export function OrderLookupCard() {
+export function OrderLookupCard({ lookupToken }: { lookupToken?: string | null }) {
   const emailId = useId();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
-    "idle",
-  );
-  const [message, setMessage] = useState("");
-  const [tickets, setTickets] = useState<Ticket[] | null>(null);
+  const { email, setEmail, phase, status, message, tickets, requestLink } =
+    useTicketLookup(lookupToken);
   const [faqOpen, setFaqOpen] = useState(false);
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const value = email.trim();
-    if (!value) return;
-    setStatus("loading");
-    setMessage("");
-    setTickets(null);
-    try {
-      const res = await fetch("/api/tickets/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: value }),
-      });
-      const data = (await res.json()) as {
-        tickets?: Ticket[];
-        error?: string;
-      };
-      if (res.ok && Array.isArray(data.tickets)) {
-        setTickets(data.tickets);
-        setStatus("done");
-        setMessage(
-          data.tickets.length > 0
-            ? `Encontramos ${data.tickets.length} código${
-                data.tickets.length > 1 ? "s" : ""
-              }.`
-            : "No encontramos códigos con ese correo todavía.",
-        );
-      } else {
-        setStatus("error");
-        setMessage(data.error || "No pudimos consultar. Intenta más tarde.");
-      }
-    } catch {
-      setStatus("error");
-      setMessage("No pudimos consultar. Intenta más tarde.");
-    }
-  };
 
   return (
     <article className="order-lookup-card w-full max-w-[380px] mx-auto rounded-3xl overflow-hidden bg-white text-neutral-900 shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
@@ -165,13 +120,13 @@ export function OrderLookupCard() {
             Consulta tu pedido
           </h2>
           <p className="m-0 mt-0.5 text-[12px] font-medium text-white/70">
-            Revisa aquí tus tickets con tu email
+            Te enviamos un enlace seguro a tu correo
           </p>
         </div>
       </header>
 
       <div className="space-y-3 bg-white px-4 py-4">
-        <form onSubmit={onSubmit} className="space-y-3">
+        <form onSubmit={requestLink} className="space-y-3">
           <label
             htmlFor={emailId}
             className="flex items-center gap-1.5 text-[13px] font-semibold text-neutral-800"
@@ -195,7 +150,13 @@ export function OrderLookupCard() {
             className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-black py-3.5 text-[14px] font-extrabold uppercase tracking-wide text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60"
           >
             <SearchIcon className="size-4" />
-            {status === "loading" ? "Buscando…" : "Buscar"}
+            {status === "loading"
+              ? phase === "verified"
+                ? "Verificando…"
+                : "Enviando enlace…"
+              : phase === "verified"
+                ? "Ver códigos"
+                : "Enviar enlace seguro"}
           </button>
         </form>
 

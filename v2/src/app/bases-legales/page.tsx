@@ -1,8 +1,22 @@
-import { CONTACT_EMAIL, DEFAULT_SITE_URL } from "@/lib/site";
+import type { Metadata } from "next";
+import {
+  CONTACT_EMAIL,
+  DEFAULT_SITE_URL,
+  LEGAL_ADDRESS,
+  LEGAL_BUSINESS_NAME,
+  LEGAL_RUT,
+} from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Bases legales del sorteo",
+  description:
+    "Bases de la promoción SUERTU2S: compra de ilustraciones digitales y participación por MOTORRAD CORSA R150 0km 2026.",
+  alternates: { canonical: "/bases-legales" },
+};
 
 const jsonLd = {
   "@context": "https://schema.org",
-  "@type": "LegalService",
+  "@type": "WebPage",
   name: "Bases legales — MOTORRAD CORSA R150 0km 2026",
   description:
     "Bases de la premiación promocional SUERTU2S vinculada a la compra de packs de ilustración digital.",
@@ -27,6 +41,23 @@ export default function BasesLegalesPage() {
           participación para el sorteo vigente, conforme a la normativa chilena
           aplicable a promociones comerciales.
         </p>
+
+        <h2 className="text-white font-title text-xl font-bold pt-2">
+          Organizador
+        </h2>
+        <ul className="list-disc pl-5 space-y-2">
+          <li>
+            <strong className="text-brand-cream">Razón social / marca:</strong>{" "}
+            {LEGAL_BUSINESS_NAME}
+          </li>
+          <li>
+            <strong className="text-brand-cream">RUT:</strong> {LEGAL_RUT}
+          </li>
+          <li>
+            <strong className="text-brand-cream">Domicilio:</strong>{" "}
+            {LEGAL_ADDRESS}
+          </li>
+        </ul>
 
         <h2 className="text-white font-title text-xl font-bold pt-2">
           Premio

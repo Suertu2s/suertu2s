@@ -479,8 +479,18 @@ export async function fulfillOrder(orderId: string) {
           assignedCodes: data.assignedCodes as string[] | undefined,
         };
       }
-    } catch {
-      // Continuar con la lógica TypeScript si RPC no está configurado
+
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+        throw new Error(
+          error?.message ||
+            "RPC fulfill_order_and_generate_tickets no disponible — ejecuta supabase_security_migration.sql",
+        );
+      }
+    } catch (rpcErr) {
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+        throw rpcErr instanceof Error ? rpcErr : new Error(String(rpcErr));
+      }
+      // Sin service role (dev local): continuar con fallback TS
     }
 
     // 2. Lógica TypeScript directa con Supabase
@@ -638,6 +648,95 @@ export async function lookupTicketsByEmail(email: string) {
   }
 
   return memoryLookupTickets(email);
+}
+
+export async function hasPaidTicketsForEmail(email: string): Promise<boolean> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { count } = await supabase
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .ilike("email", normalized);
+    return (count ?? 0) > 0;
+  }
+
+  return memoryLookupTickets(email).length > 0;
+}
+
+export type RecentPurchaseRow = {
+  orderId: string;
+  fullName: string;
+  paidAt: string;
+  packId: string;
+  ticketCount: number;
+};
+
+export async function listRecentPaidPurchases(
+  limit = 12,
+): Promise<RecentPurchaseRow[]> {
+  ensureDemoSeed();
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { data: orders } = await supabase
+      .from("orders")
+      .select("id, full_name, paid_at, order_items(pack_id, ticket_count)")
+      .eq("status", "paid")
+      .not("paid_at", "is", null)
+      .order("paid_at", { ascending: false })
+      .limit(limit);
+
+    const rows: RecentPurchaseRow[] = [];
+    for (const row of orders || []) {
+      const items = (row.order_items || []) as Array<{
+        pack_id: string;
+        ticket_count: number;
+      }>;
+      const primary = items[0];
+      if (!primary || !row.paid_at) continue;
+      const catalogId =
+        PACK_ID_BY_UUID[primary.pack_id] || primary.pack_id;
+      rows.push({
+        orderId: String(row.id),
+        fullName: String(row.full_name || "Comprador"),
+        paidAt: String(row.paid_at),
+        packId: catalogId,
+        ticketCount: Number(primary.ticket_count) || 1,
+      });
+    }
+    return rows;
+  }
+
+  return memoryListOrders()
+    .filter((o) => o.status === "paid" && o.paid_at)
+    .sort((a, b) => (b.paid_at || "").localeCompare(a.paid_at || ""))
+    .slice(0, limit)
+    .map((o) => ({
+      orderId: o.id,
+      fullName: o.full_name,
+      paidAt: o.paid_at!,
+      packId: "pack-chiloe",
+      ticketCount: 1,
+    }));
+}
+
+export async function listOrdersByAffiliate(affiliateId: string) {
+  ensureDemoSeed();
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("affiliate_id", affiliateId)
+      .order("created_at", { ascending: false });
+    return (data || []).map(mapOrder);
+  }
+
+  return memoryListOrders().filter((o) => o.affiliate_id === affiliateId);
 }
 
 function ensureDemoSeed() {
