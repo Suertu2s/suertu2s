@@ -35,13 +35,19 @@ type AdminContextValue = {
 const AdminContext = createContext<AdminContextValue | null>(null);
 
 function defaultFrom() {
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Santiago",
+  });
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 30);
+  return dt.toISOString().slice(0, 10);
 }
 
 function defaultTo() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Santiago",
+  });
 }
 
 export function AdminProvider({ children }: { children: ReactNode }) {

@@ -34,6 +34,11 @@ export function filterOrdersByRange(
   });
 }
 
+/** Día calendario en zona Chile (YYYY-MM-DD) */
+export function chileDateKey(d: Date) {
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+}
+
 export function previousPeriod(from: Date, to: Date) {
   const span = to.getTime() - from.getTime();
   const prevTo = new Date(from.getTime() - 1);
@@ -65,7 +70,7 @@ export function buildSalesKpis(orders: DbOrder[], from: Date, to: Date) {
   >();
   for (const o of paid) {
     const d = new Date(o.paid_at || o.created_at);
-    const key = d.toISOString().slice(0, 10);
+    const key = chileDateKey(d);
     const row = dayMap.get(key) || { date: key, orders: 0, revenue: 0 };
     row.orders += 1;
     row.revenue += o.total_clp;
@@ -148,9 +153,10 @@ export function buildPackMix(
   for (const item of items) {
     if (!paidIds.has(item.order_id)) continue;
     const pack = getPackById(item.pack_id);
+    const packId = pack?.id || item.pack_id;
     const name = pack?.name || item.pack_id;
-    const row = map.get(item.pack_id) || {
-      packId: item.pack_id,
+    const row = map.get(packId) || {
+      packId,
       name,
       quantity: 0,
       revenue: 0,
@@ -159,7 +165,7 @@ export function buildPackMix(
     row.quantity += item.quantity;
     row.revenue += item.unit_price_clp * item.quantity;
     row.tickets += item.ticket_count;
-    map.set(item.pack_id, row);
+    map.set(packId, row);
   }
 
   for (const p of getPacks()) {

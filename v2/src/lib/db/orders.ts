@@ -92,10 +92,12 @@ function mapOrder(row: any): DbOrder {
 }
 
 function mapOrderItem(row: any): DbOrderItem {
+  const rawPackId = String(row.pack_id);
   return {
     id: String(row.id),
     order_id: String(row.order_id),
-    pack_id: String(row.pack_id),
+    // En DB se guarda UUID de packs; en catálogo/UI usamos pack-puerto-montt, etc.
+    pack_id: PACK_ID_BY_UUID[rawPackId] || rawPackId,
     quantity: Number(row.quantity),
     unit_price_clp: Number(row.unit_price_clp),
     ticket_count: Number(row.ticket_count),

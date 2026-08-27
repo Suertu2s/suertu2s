@@ -17,6 +17,23 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/db/supabase";
 
 export type { AnalysisPrize };
 
+/** UUID de packs en Supabase → id de catálogo en la app */
+const PACK_UUID_MAP: Record<string, string> = {
+  "b0000000-0000-4000-8000-000000000001": "pack-puerto-montt",
+  "b0000000-0000-4000-8000-000000000002": "pack-llanquihue",
+  "b0000000-0000-4000-8000-000000000003": "pack-chiloe",
+};
+
+const PACK_ID_TO_UUID: Record<string, string> = {
+  "pack-puerto-montt": "b0000000-0000-4000-8000-000000000001",
+  "pack-llanquihue": "b0000000-0000-4000-8000-000000000002",
+  "pack-chiloe": "b0000000-0000-4000-8000-000000000003",
+};
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_RAFFLE_UUID = "a0000000-0000-4000-8000-000000000001";
+
 export type RaffleSettings = {
   id: string;
   title: string;
@@ -418,7 +435,10 @@ export function getPacks(): Pack[] {
 }
 
 export function getPackById(id: string) {
-  const pack = store().packs.find((p) => p.id === id);
+  const normalized = PACK_UUID_MAP[id] || id;
+  const pack = store().packs.find(
+    (p) => p.id === normalized || p.id === id || PACK_ID_TO_UUID[p.id] === id,
+  );
   return pack ? { ...pack } : undefined;
 }
 
@@ -616,22 +636,6 @@ export function replacePacks(
   touch();
   return getPacks();
 }
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DEFAULT_RAFFLE_UUID = "a0000000-0000-4000-8000-000000000001";
-
-const PACK_UUID_MAP: Record<string, string> = {
-  "b0000000-0000-4000-8000-000000000001": "pack-puerto-montt",
-  "b0000000-0000-4000-8000-000000000002": "pack-llanquihue",
-  "b0000000-0000-4000-8000-000000000003": "pack-chiloe",
-};
-
-const PACK_ID_TO_UUID: Record<string, string> = {
-  "pack-puerto-montt": "b0000000-0000-4000-8000-000000000001",
-  "pack-llanquihue": "b0000000-0000-4000-8000-000000000002",
-  "pack-chiloe": "b0000000-0000-4000-8000-000000000003",
-};
 
 /**
  * Sincroniza en tiempo real el sorteo activo, paquetes y premios desde Supabase PostgreSQL.
