@@ -44,6 +44,14 @@ export function Footer() {
             </li>
             <li>
               <Link
+                href="/sorteos-activos"
+                className="hover:text-brand-greenBright transition-colors no-underline text-brand-muted"
+              >
+                Premios activos
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/bases-legales"
                 className="hover:text-brand-greenBright transition-colors no-underline text-brand-muted"
               >

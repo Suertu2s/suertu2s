@@ -8,11 +8,9 @@ import { triggerLuckEffect } from "@/components/ui/GoldenCloverEffect";
 
 const navLinks = [
   { href: "/", label: "Inicio" },
-  { href: "/sorteos-activos", label: "Premios activos" },
   { href: "/#comprar", label: "Elegir pack" },
   { href: "/#como-jugar", label: "Cómo funciona" },
   { href: "/#faq", label: "Preguntas frecuentes" },
-  { href: "/afiliados", label: "Soy afiliado" },
   { href: "/bases-legales", label: "Bases legales" },
 ];
 
@@ -151,55 +149,20 @@ export function Header() {
         </button>
 
         <nav className="flex flex-col items-center gap-6 mb-10 w-full px-6">
-          <Link
-            href="/"
-            onClick={() => setOpen(false)}
-            className="font-title text-white no-underline text-xl font-bold"
-          >
-            Inicio
-          </Link>
-          <Link
-            href="/sorteos-activos"
-            onClick={() => setOpen(false)}
-            className="font-title text-white no-underline text-xl font-bold"
-          >
-            Premios activos
-          </Link>
-          <Link
-            href="/#comprar"
-            onClick={() => setOpen(false)}
-            className="font-title text-brand-greenBright no-underline text-xl font-bold"
-          >
-            Elegir pack
-          </Link>
-          <Link
-            href="/#como-jugar"
-            onClick={() => setOpen(false)}
-            className="font-title text-white no-underline text-xl font-bold"
-          >
-            Cómo funciona
-          </Link>
-          <Link
-            href="/#faq"
-            onClick={() => setOpen(false)}
-            className="font-title text-white no-underline text-xl font-bold"
-          >
-            Preguntas frecuentes
-          </Link>
-          <Link
-            href="/bases-legales"
-            onClick={() => setOpen(false)}
-            className="font-title text-white no-underline text-xl font-bold"
-          >
-            Bases legales
-          </Link>
-          <Link
-            href="/afiliados"
-            onClick={() => setOpen(false)}
-            className="font-title text-brand-gold no-underline text-xl font-bold"
-          >
-            Soy afiliado
-          </Link>
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setOpen(false)}
+              className={`font-title no-underline text-xl font-bold ${
+                link.href === "/#comprar"
+                  ? "text-brand-greenBright"
+                  : "text-white"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         <Link
