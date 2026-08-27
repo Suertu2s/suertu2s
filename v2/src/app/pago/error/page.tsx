@@ -15,7 +15,12 @@ function ErrorContent() {
   const reason = params.get("reason");
   const detail =
     (reason && REASON_MESSAGES[reason]) ||
-    "Hubo un problema al procesar el pago. Puedes intentar nuevamente desde el carrito.";
+    (reason === "no_token"
+      ? "No recibimos el comprobante de Flow. Si te descontaron el dinero, escribe a contacto@suertu2s.com con el comprobante y te ayudamos."
+      : reason === "flow_error"
+        ? "Hubo un problema técnico al volver de Flow. Si te cobraron, no vuelvas a pagar: contáctanos con el comprobante."
+        : "Hubo un problema al procesar el pago. Si te descontaron el dinero, no reintentes: contáctanos.");
+
 
   return (
     <main className="max-w-xl mx-auto px-4 py-16 text-center space-y-6">

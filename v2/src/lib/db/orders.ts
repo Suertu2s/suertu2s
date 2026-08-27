@@ -573,8 +573,18 @@ export async function getOrderPackIds(orderId: string): Promise<string[]> {
   if (!detail) return [];
   const ids = new Set<string>();
   for (const item of detail.items) {
+    // mapOrderItem ya normaliza UUID → pack-*; por si llega UUID crudo:
     const catalogId = PACK_ID_BY_UUID[item.pack_id] || item.pack_id;
-    if (getPackById(catalogId)) ids.add(catalogId);
+    if (getPackById(catalogId)) {
+      ids.add(catalogId);
+      continue;
+    }
+    // Último recurso: coincidencia parcial por id
+    for (const [uuid, id] of Object.entries(PACK_ID_BY_UUID)) {
+      if (item.pack_id === uuid || item.pack_id.includes(id)) {
+        ids.add(id);
+      }
+    }
   }
   return [...ids];
 }

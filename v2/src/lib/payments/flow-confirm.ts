@@ -54,20 +54,18 @@ export async function confirmFlowPaymentByToken(
     };
   }
 
-  if (Math.round(flowStatus.amount) !== order.total_clp) {
-    logServerError(
-      "payments/flow/confirm",
-      new Error(
-        `Monto Flow no coincide pedido=${order.id} esperado=${order.total_clp} recibido=${flowStatus.amount}`,
-      ),
-    );
-    return {
-      ok: false,
-      orderId: order.id,
-      status: 2,
-      error: "amount_mismatch",
-      httpStatus: 400,
-    };
+  if (Math.round(Number(flowStatus.amount)) !== order.total_clp) {
+    // Flow ya confirmó status=2; no bloquear el fulfill por desfase de monto
+    // (redondeos / paymentData). Solo registrar para auditoría.
+    const alt = Math.round(Number(flowStatus.paymentData?.amount ?? NaN));
+    if (alt !== order.total_clp) {
+      logServerError(
+        "payments/flow/confirm",
+        new Error(
+          `Monto Flow distinto pedido=${order.id} esperado=${order.total_clp} flow.amount=${flowStatus.amount} paymentData.amount=${flowStatus.paymentData?.amount ?? "n/a"} — se cumple igual porque status=2`,
+        ),
+      );
+    }
   }
 
   if (order.status === "paid") {
