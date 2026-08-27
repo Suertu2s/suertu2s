@@ -29,6 +29,60 @@ function TrashIcon() {
   );
 }
 
+function CartQtyControls({
+  quantity,
+  onDecrease,
+  onIncrease,
+}: {
+  quantity: number;
+  onDecrease: () => void;
+  onIncrease: () => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <button
+        type="button"
+        aria-label="Restar uno"
+        onClick={onDecrease}
+        className="w-9 h-9 rounded-md border border-white/15 bg-transparent text-white text-base cursor-pointer hover:border-brand-gold/50"
+      >
+        −
+      </button>
+      <span className="min-w-[1.75rem] text-center text-white font-bold text-sm">
+        {quantity}
+      </span>
+      <button
+        type="button"
+        aria-label="Sumar uno"
+        onClick={onIncrease}
+        className="w-9 h-9 rounded-md border border-white/15 bg-transparent text-white text-base cursor-pointer hover:border-brand-gold/50"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function CartRemoveButton({
+  name,
+  onRemove,
+}: {
+  name: string;
+  onRemove: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Eliminar ${name}`}
+      title="Eliminar del carrito"
+      onClick={onRemove}
+      className="inline-flex shrink-0 items-center justify-center w-10 h-10 rounded-lg border border-red-400/25 bg-red-500/10 text-red-300 cursor-pointer hover:bg-red-500/20 hover:border-red-400/50 transition-colors"
+    >
+      <TrashIcon />
+    </button>
+  );
+}
+
 export function CheckoutView() {
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
@@ -254,26 +308,73 @@ export function CheckoutView() {
           </h2>
 
           <div
-            className="rounded-xl overflow-hidden"
+            className="rounded-xl"
             style={{
               backgroundColor: "rgba(255, 255, 255, 0.01)",
               border: "1px solid rgba(255, 255, 255, 0.06)",
               boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
             }}
           >
-            <table className="w-full border-collapse text-left">
+            {/* Móvil: tarjetas (evita cortar botones) */}
+            <ul className="sm:hidden m-0 p-0 list-none divide-y divide-white/5">
+              {hydrated.map((item) => {
+                const lineTotal = item.pack.priceClp * item.quantity;
+                return (
+                  <li key={item.packId} className="p-4 space-y-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="m-0 font-semibold text-white text-[15px] leading-snug">
+                          {item.pack.name}
+                        </p>
+                        <p className="m-0 mt-1 text-[12px] text-white/50">
+                          {formatClp(item.pack.priceClp)} · +
+                          {item.pack.ticketCount} ticket
+                          {item.pack.ticketCount > 1 ? "s" : ""} gratis
+                        </p>
+                      </div>
+                      <CartRemoveButton
+                        name={item.pack.name}
+                        onRemove={() => removeItem(item.packId)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <CartQtyControls
+                        quantity={item.quantity}
+                        onDecrease={() =>
+                          setQuantity(item.packId, item.quantity - 1)
+                        }
+                        onIncrease={() =>
+                          setQuantity(item.packId, item.quantity + 1)
+                        }
+                      />
+                      <div className="text-right shrink-0">
+                        <p className="m-0 text-[10px] uppercase tracking-wide text-[#f7c64b] font-bold">
+                          Subtotal
+                        </p>
+                        <p className="m-0 text-white font-bold text-[15px]">
+                          {formatClp(lineTotal).replace(/\s/g, "")}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Escritorio: tabla */}
+            <table className="hidden sm:table w-full border-collapse text-left">
               <thead>
                 <tr style={{ backgroundColor: "rgba(255, 255, 255, 0.03)" }}>
-                  <th className="px-4 sm:px-5 py-[1.1rem] text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b]">
+                  <th className="px-5 py-[1.1rem] text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b]">
                     Producto
                   </th>
-                  <th className="px-2 sm:px-3 py-[1.1rem] text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b] text-center">
+                  <th className="px-3 py-[1.1rem] text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b] text-center">
                     Cant.
                   </th>
-                  <th className="px-4 sm:px-5 py-[1.1rem] text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b] text-right">
+                  <th className="px-5 py-[1.1rem] text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b] text-right">
                     Subtotal
                   </th>
-                  <th className="w-12 px-2 py-[1.1rem]" aria-label="Quitar" />
+                  <th className="w-14 px-3 py-[1.1rem]" aria-label="Quitar" />
                 </tr>
               </thead>
               <tbody>
@@ -281,7 +382,7 @@ export function CheckoutView() {
                   const lineTotal = item.pack.priceClp * item.quantity;
                   return (
                     <tr key={item.packId} className="border-b border-white/5">
-                      <td className="px-4 sm:px-5 py-[1.1rem] text-[14px] sm:text-[15px] text-white/90">
+                      <td className="px-5 py-[1.1rem] text-[15px] text-white/90">
                         <div className="font-semibold text-white">
                           {item.pack.name}
                         </div>
@@ -291,46 +392,25 @@ export function CheckoutView() {
                           {item.pack.ticketCount > 1 ? "s" : ""} gratis
                         </div>
                       </td>
-                      <td className="px-2 sm:px-3 py-[1.1rem] text-center">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label="Restar uno"
-                            onClick={() =>
-                              setQuantity(item.packId, item.quantity - 1)
-                            }
-                            className="w-7 h-7 rounded-md border border-white/15 bg-transparent text-white text-sm cursor-pointer hover:border-brand-gold/50"
-                          >
-                            −
-                          </button>
-                          <span className="min-w-[1.5rem] text-white font-bold text-sm">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label="Sumar uno"
-                            onClick={() =>
-                              setQuantity(item.packId, item.quantity + 1)
-                            }
-                            className="w-7 h-7 rounded-md border border-white/15 bg-transparent text-white text-sm cursor-pointer hover:border-brand-gold/50"
-                          >
-                            +
-                          </button>
-                        </div>
+                      <td className="px-3 py-[1.1rem] text-center">
+                        <CartQtyControls
+                          quantity={item.quantity}
+                          onDecrease={() =>
+                            setQuantity(item.packId, item.quantity - 1)
+                          }
+                          onIncrease={() =>
+                            setQuantity(item.packId, item.quantity + 1)
+                          }
+                        />
                       </td>
-                      <td className="px-4 sm:px-5 py-[1.1rem] text-[14px] sm:text-[15px] text-white font-bold text-right whitespace-nowrap">
+                      <td className="px-5 py-[1.1rem] text-[15px] text-white font-bold text-right whitespace-nowrap">
                         {formatClp(lineTotal).replace(/\s/g, "")}
                       </td>
-                      <td className="px-2 py-[1.1rem] text-right">
-                        <button
-                          type="button"
-                          aria-label={`Eliminar ${item.pack.name}`}
-                          title="Eliminar del carrito"
-                          onClick={() => removeItem(item.packId)}
-                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-red-400/25 bg-red-500/10 text-red-300 cursor-pointer hover:bg-red-500/20 hover:border-red-400/50 transition-colors"
-                        >
-                          <TrashIcon />
-                        </button>
+                      <td className="px-3 py-[1.1rem] text-right">
+                        <CartRemoveButton
+                          name={item.pack.name}
+                          onRemove={() => removeItem(item.packId)}
+                        />
                       </td>
                     </tr>
                   );
@@ -338,11 +418,11 @@ export function CheckoutView() {
                 <tr className="border-b border-white/5">
                   <td
                     colSpan={2}
-                    className="px-4 sm:px-5 py-4 text-right text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b]"
+                    className="px-5 py-4 text-right text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b]"
                   >
                     Subtotal
                   </td>
-                  <td className="px-4 sm:px-5 py-4 text-[15px] text-white font-bold text-right whitespace-nowrap">
+                  <td className="px-5 py-4 text-[15px] text-white font-bold text-right whitespace-nowrap">
                     {priceLabel}
                   </td>
                   <td />
@@ -350,17 +430,33 @@ export function CheckoutView() {
                 <tr>
                   <td
                     colSpan={2}
-                    className="px-4 sm:px-5 py-4 text-right text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b]"
+                    className="px-5 py-4 text-right text-[13px] font-bold uppercase tracking-[0.08em] text-[#f7c64b]"
                   >
                     Total
                   </td>
-                  <td className="px-4 sm:px-5 py-4 text-[15px] text-white font-bold text-right whitespace-nowrap">
+                  <td className="px-5 py-4 text-[15px] text-white font-bold text-right whitespace-nowrap">
                     {priceLabel}
                   </td>
                   <td />
                 </tr>
               </tbody>
             </table>
+
+            {/* Totales móvil */}
+            <div className="sm:hidden border-t border-white/5 px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-[#f7c64b] font-bold uppercase tracking-wide">
+                  Subtotal
+                </span>
+                <span className="text-white font-bold">{priceLabel}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-base">
+                <span className="text-[#f7c64b] font-bold uppercase tracking-wide">
+                  Total
+                </span>
+                <span className="text-white font-bold">{priceLabel}</span>
+              </div>
+            </div>
           </div>
 
           {!acceptsOrders && (
@@ -377,50 +473,50 @@ export function CheckoutView() {
               </legend>
               {payments.flow && (
                 <label
-                  className={`flex items-center justify-between gap-3 rounded-[14px] px-[18px] py-[14px] cursor-pointer border ${
+                  className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 rounded-[14px] px-4 sm:px-[18px] py-[14px] cursor-pointer border ${
                     provider === "flow"
                       ? "border-[#36f073]/70 bg-[rgba(13,17,14,0.9)]"
                       : "border-white/10 bg-[rgba(255,255,255,0.02)]"
                   }`}
                 >
-                  <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-3 min-w-0">
                     <input
                       type="radio"
                       name="payment-provider"
                       checked={provider === "flow"}
                       onChange={() => setProvider("flow")}
-                      className="accent-[#36f073]"
+                      className="accent-[#36f073] shrink-0"
                     />
                     <span className="text-white text-[15px] font-bold">
                       Flow.cl
                     </span>
                   </span>
-                  <span className="text-[12px] text-brand-muted font-semibold">
+                  <span className="text-[12px] text-brand-muted font-semibold pl-7 sm:pl-0">
                     Webpay, Servipag y tarjetas
                   </span>
                 </label>
               )}
               {payments.mock && (
                 <label
-                  className={`flex items-center justify-between gap-3 rounded-[14px] px-[18px] py-[14px] cursor-pointer border ${
+                  className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 rounded-[14px] px-4 sm:px-[18px] py-[14px] cursor-pointer border ${
                     provider === "mock"
                       ? "border-brand-gold/60 bg-[rgba(13,17,14,0.9)]"
                       : "border-white/10 bg-[rgba(255,255,255,0.02)]"
                   }`}
                 >
-                  <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-3 min-w-0">
                     <input
                       type="radio"
                       name="payment-provider"
                       checked={provider === "mock"}
                       onChange={() => setProvider("mock")}
-                      className="accent-[#f7c64b]"
+                      className="accent-[#f7c64b] shrink-0"
                     />
                     <span className="text-white text-[15px] font-bold">
                       Pago de prueba
                     </span>
                   </span>
-                  <span className="text-[12px] text-brand-muted font-semibold">
+                  <span className="text-[12px] text-brand-muted font-semibold pl-7 sm:pl-0">
                     Solo desarrollo
                   </span>
                 </label>
