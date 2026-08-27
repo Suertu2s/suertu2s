@@ -31,6 +31,11 @@ function resolveSiteUrl(req: NextRequest) {
   );
 }
 
+/** 303: tras POST de Flow el navegador debe abrir la página con GET (307 deja POST → 405). */
+function redirectBrowserGet(url: string) {
+  return NextResponse.redirect(url, 303);
+}
+
 function redirectExito(
   site: string,
   orderId: string,
@@ -39,7 +44,7 @@ function redirectExito(
   const url = new URL(`${site}/pago/exito`);
   if (orderId) url.searchParams.set("orderId", orderId);
   if (opts?.pending) url.searchParams.set("pending", "1");
-  return NextResponse.redirect(url.toString());
+  return redirectBrowserGet(url.toString());
 }
 
 export async function GET(req: NextRequest) {
@@ -71,7 +76,7 @@ async function handleReturn(req: NextRequest) {
 
     if (!token) {
       // Sin token no podemos confirmar; no digamos "pago fallido" si pudo cobrarse
-      return NextResponse.redirect(`${site}/pago/error?reason=no_token`);
+      return redirectBrowserGet(`${site}/pago/error?reason=no_token`);
     }
 
     let flowStatus: Awaited<ReturnType<typeof getFlowPaymentStatus>>;
@@ -125,7 +130,7 @@ async function handleReturn(req: NextRequest) {
         logServerError("payments/flow/return/mark-failed", markErr);
       }
     }
-    return NextResponse.redirect(
+    return redirectBrowserGet(
       `${site}/pago/error?orderId=${encodeURIComponent(orderId)}&status=${flowStatus.status}`,
     );
   } catch (error) {
@@ -137,6 +142,6 @@ async function handleReturn(req: NextRequest) {
         pending: true,
       });
     }
-    return NextResponse.redirect(`${site}/pago/error?reason=flow_error`);
+    return redirectBrowserGet(`${site}/pago/error?reason=flow_error`);
   }
 }
