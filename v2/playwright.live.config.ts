@@ -5,6 +5,7 @@ import base from "./playwright.config";
 export default defineConfig({
   ...base,
   testMatch: ["**/live.spec.ts", "**/smoke.spec.ts"],
+  testIgnore: [],
   use: {
     ...base.use,
     baseURL: "https://suertu2s.cl",
