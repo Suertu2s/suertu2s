@@ -26,5 +26,5 @@ export function affiliateCodeFromName(name: string) {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "")
     .slice(0, 8);
-  return `${normalized || "COLAB"}${randomBytes(2).toString("hex").toUpperCase()}`;
+  return `${normalized || "COLAB"}${randomBytes(4).toString("hex").toUpperCase()}`;
 }

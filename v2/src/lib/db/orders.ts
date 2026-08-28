@@ -4,6 +4,10 @@ import { assertRaffleAcceptsOrders } from "@/lib/catalog/orders-guard";
 import { getPackById, getRaffle } from "@/lib/catalog/store";
 import { hashPassword } from "@/lib/security/password";
 import { calculateCommissionEntries } from "@/lib/affiliate/commission-engine";
+import {
+  hashAffiliateInviteToken,
+  isAffiliateInviteExpired,
+} from "@/lib/affiliate/invite";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
 import {
   memoryCreateOrder,
@@ -64,7 +68,9 @@ export function isDbActive(): boolean {
   return isSupabaseConfigured();
 }
 
-function mapOrder(row: any): DbOrder {
+type DbRow = Record<string, unknown>;
+
+function mapOrder(row: DbRow): DbOrder {
   return {
     id: String(row.id),
     email: String(row.email),
@@ -99,7 +105,7 @@ function mapOrder(row: any): DbOrder {
   };
 }
 
-function mapOrderItem(row: any): DbOrderItem {
+function mapOrderItem(row: DbRow): DbOrderItem {
   const rawPackId = String(row.pack_id);
   return {
     id: String(row.id),
@@ -112,7 +118,7 @@ function mapOrderItem(row: any): DbOrderItem {
   };
 }
 
-function mapTicket(row: any): DbTicket {
+function mapTicket(row: DbRow): DbTicket {
   return {
     id: String(row.id),
     raffle_id: String(row.raffle_id),
@@ -127,7 +133,7 @@ function mapTicket(row: any): DbTicket {
   };
 }
 
-function mapAffiliate(row: any): DbAffiliate {
+function mapAffiliate(row: DbRow): DbAffiliate {
   return {
     id: String(row.id),
     code: String(row.code),
@@ -163,7 +169,7 @@ function mapAffiliate(row: any): DbAffiliate {
   };
 }
 
-function mapCommission(row: any): DbAffiliateCommission {
+function mapCommission(row: DbRow): DbAffiliateCommission {
   return {
     id: String(row.id),
     order_id: String(row.order_id),
@@ -185,7 +191,7 @@ function mapCommission(row: any): DbAffiliateCommission {
   };
 }
 
-function mapPayout(row: any): DbAffiliatePayout {
+function mapPayout(row: DbRow): DbAffiliatePayout {
   return {
     id: String(row.id),
     affiliate_id: String(row.affiliate_id),
@@ -1175,6 +1181,29 @@ function selectCommissionsForPayout(
   return selected;
 }
 
+const memoryPayoutLocks = new Map<string, Promise<void>>();
+
+async function withMemoryPayoutLock<T>(
+  affiliateId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = memoryPayoutLocks.get(affiliateId) || Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  memoryPayoutLocks.set(affiliateId, current);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (memoryPayoutLocks.get(affiliateId) === current) {
+      memoryPayoutLocks.delete(affiliateId);
+    }
+  }
+}
+
 export async function createPayout(input: {
   affiliate_id: string;
   amount_clp: number;
@@ -1182,57 +1211,123 @@ export async function createPayout(input: {
   period_to: string;
   note?: string | null;
 }) {
-  const payoutId = randomUUID();
-  const paidAt = new Date().toISOString();
   const amount = Math.round(input.amount_clp);
   const from = input.period_from.slice(0, 10);
   const to = input.period_to.slice(0, 10);
   const note = input.note?.trim() || null;
-  const pendingCommissions = (await listCommissions())
-    .filter(
-      (commission) =>
-        commission.affiliate_id === input.affiliate_id &&
-        commission.status === "pending",
-    )
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
-  selectCommissionsForPayout(pendingCommissions, amount);
 
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from("affiliate_payouts")
-      .insert({
-        id: payoutId,
-        affiliate_id: input.affiliate_id,
-        amount_clp: amount,
-        period_from: from,
-        period_to: to,
-        note,
-        paid_at: paidAt,
-        created_at: paidAt,
-      })
-      .select("*")
-      .single();
-
-    if (error || !data) {
-      throw new Error(`Error al crear payout en Supabase: ${error?.message}`);
+    const { data, error } = await supabase.rpc(
+      "create_affiliate_payout_atomic",
+      {
+        p_affiliate_id: input.affiliate_id,
+        p_amount_clp: amount,
+        p_period_from: from,
+        p_period_to: to,
+        p_note: note,
+      },
+    );
+    if (error || !data?.payout) {
+      throw new Error(
+        `Error al crear liquidación atómica: ${
+          error?.message || "respuesta inválida del servidor"
+        }`,
+      );
     }
-    const payout = mapPayout(data);
+    return mapPayout(data.payout);
+  }
+
+  return withMemoryPayoutLock(input.affiliate_id, async () => {
+    const pendingCommissions = (await listCommissions())
+      .filter(
+        (commission) =>
+          commission.affiliate_id === input.affiliate_id &&
+          commission.status === "pending",
+      )
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    selectCommissionsForPayout(pendingCommissions, amount);
+    const payout = memoryCreatePayout(input);
     await allocateCommissionsToPayout(
       input.affiliate_id,
       payout.id,
       payout.amount_clp,
     );
     return payout;
+  });
+}
+
+export async function registerAffiliateFromInvite(input: {
+  invitationToken: string;
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+}) {
+  const tokenHash = hashAffiliateInviteToken(input.invitationToken);
+  const passwordHash = hashPassword(input.password);
+  const code = input.code.toUpperCase().trim();
+  const email = input.email.toLowerCase().trim();
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.rpc(
+      "register_affiliate_from_invite",
+      {
+        p_token_hash: tokenHash,
+        p_code: code,
+        p_name: input.name.trim(),
+        p_email: email,
+        p_phone: input.phone.trim(),
+        p_password_hash: passwordHash,
+      },
+    );
+    if (error || !data?.id) {
+      throw new Error(
+        error?.message || "No se pudo completar el registro de afiliado",
+      );
+    }
+    const created = await getAffiliateById(String(data.id));
+    if (!created) throw new Error("No se pudo obtener el afiliado creado");
+    return created;
   }
 
-  const payout = memoryCreatePayout(input);
-  await allocateCommissionsToPayout(
-    input.affiliate_id,
-    payout.id,
-    payout.amount_clp,
+  const affiliates = memoryListAffiliates();
+  const inviter = affiliates.find(
+    (affiliate) =>
+      affiliate.invite_token_hash === tokenHash &&
+      affiliate.active &&
+      !isAffiliateInviteExpired(affiliate.invite_expires_at),
   );
-  return payout;
+  if (!inviter)
+    throw new Error("El enlace de invitación no es válido o expiró.");
+  if (
+    affiliates.some((affiliate) => affiliate.email?.toLowerCase() === email)
+  ) {
+    throw new Error("Ese correo ya está registrado como colaborador.");
+  }
+  if (affiliates.some((affiliate) => affiliate.code.toUpperCase() === code)) {
+    throw new Error("El código generado ya existe. Intenta nuevamente.");
+  }
+
+  // El consumo ocurre antes de crear la cuenta: dos solicitudes concurrentes
+  // no pueden reutilizar el mismo token en el fallback local.
+  inviter.invite_token_hash = null;
+  inviter.invite_expires_at = null;
+  return memoryUpsertAffiliate({
+    code,
+    name: input.name.trim(),
+    email,
+    phone: input.phone.trim(),
+    password_hash: passwordHash,
+    commission_type: "percent",
+    commission_value: 10,
+    active: true,
+    invitation_status: "active",
+    referred_by_affiliate_id: inviter.id,
+    notes: `Invitado por ${inviter.name} (${inviter.code})`,
+  });
 }
 
 export async function upsertAffiliate(
@@ -1240,6 +1335,7 @@ export async function upsertAffiliate(
     code: string;
     name: string;
     password?: string;
+    createOnly?: boolean;
   },
 ) {
   const password_hash =
@@ -1258,6 +1354,9 @@ export async function upsertAffiliate(
       .maybeSingle();
 
     if (existing) {
+      if (input.createOnly) {
+        throw new Error("El código de afiliado ya existe.");
+      }
       const affiliateId = String(existing.id);
       const updatePayload: Record<string, unknown> = {
         name: input.name,
@@ -1323,6 +1422,15 @@ export async function upsertAffiliate(
       const created = await getAffiliateById(affiliateId);
       return created!;
     }
+  }
+
+  if (
+    input.createOnly &&
+    memoryListAffiliates().some(
+      (affiliate) => affiliate.code.toUpperCase() === code,
+    )
+  ) {
+    throw new Error("El código de afiliado ya existe.");
   }
 
   return memoryUpsertAffiliate({

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useId, useState } from "react";
 import { useTicketLookup } from "@/hooks/useTicketLookup";
 import { LEGAL_BASES_SHORT } from "@/lib/site";
@@ -97,7 +98,11 @@ function TikTokIcon({ className }: { className?: string }) {
   );
 }
 
-export function OrderLookupCard({ lookupToken }: { lookupToken?: string | null }) {
+export function OrderLookupCard({
+  lookupToken,
+}: {
+  lookupToken?: string | null;
+}) {
   const emailId = useId();
   const { email, setEmail, phase, status, message, tickets, requestLink } =
     useTicketLookup(lookupToken);
@@ -230,12 +235,12 @@ export function OrderLookupCard({ lookupToken }: { lookupToken?: string | null }
                   </li>
                 ))}
                 <li className="list-none pt-1">
-                  <a
+                  <Link
                     href="/#faq"
                     className="text-[12px] font-semibold text-neutral-800 underline underline-offset-2"
                   >
                     Ver todas las preguntas
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

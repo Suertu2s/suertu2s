@@ -243,6 +243,179 @@ DROP POLICY IF EXISTS "Service role full access on affiliate_commissions" ON aff
 CREATE POLICY "Service role full access on affiliate_commissions"
   ON affiliate_commissions FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+-- Registro y consumo del enlace en una sola transacción.
+CREATE OR REPLACE FUNCTION register_affiliate_from_invite(
+  p_token_hash TEXT,
+  p_code TEXT,
+  p_name TEXT,
+  p_email TEXT,
+  p_phone TEXT,
+  p_password_hash TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_inviter affiliates%ROWTYPE;
+  v_new_id UUID;
+  v_email TEXT := LOWER(BTRIM(p_email));
+  v_code TEXT := UPPER(BTRIM(p_code));
+BEGIN
+  SELECT *
+  INTO v_inviter
+  FROM affiliates
+  WHERE invite_token_hash = p_token_hash
+    AND active = TRUE
+    AND invite_expires_at > NOW()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'El enlace de invitación no es válido o expiró.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM affiliates WHERE LOWER(email) = v_email
+  ) THEN
+    RAISE EXCEPTION 'Ese correo ya está registrado como colaborador.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM affiliates WHERE UPPER(code) = v_code
+  ) THEN
+    RAISE EXCEPTION 'El código de afiliado ya existe.';
+  END IF;
+
+  INSERT INTO affiliates (
+    code, name, email, phone, commission_type, commission_value,
+    active, password_hash, referred_by_affiliate_id, invitation_status, notes
+  )
+  VALUES (
+    v_code, BTRIM(p_name), v_email, BTRIM(p_phone), 'percent', 10,
+    TRUE, p_password_hash, v_inviter.id, 'active',
+    FORMAT('Invitado por %s (%s)', v_inviter.name, v_inviter.code)
+  )
+  RETURNING id INTO v_new_id;
+
+  UPDATE affiliates
+  SET invite_token_hash = NULL,
+      invite_expires_at = NULL,
+      updated_at = NOW()
+  WHERE id = v_inviter.id;
+
+  RETURN jsonb_build_object('id', v_new_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION register_affiliate_from_invite(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION register_affiliate_from_invite(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
+) FROM anon;
+REVOKE ALL ON FUNCTION register_affiliate_from_invite(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
+) FROM authenticated;
+GRANT EXECUTE ON FUNCTION register_affiliate_from_invite(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
+) TO service_role;
+
+-- Liquidación atómica: bloquea al afiliado, crea el payout y marca sus
+-- comisiones dentro de la misma transacción.
+CREATE OR REPLACE FUNCTION create_affiliate_payout_atomic(
+  p_affiliate_id UUID,
+  p_amount_clp INT,
+  p_period_from DATE,
+  p_period_to DATE,
+  p_note TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_payout affiliate_payouts%ROWTYPE;
+  v_commission RECORD;
+  v_remaining INT := p_amount_clp;
+  v_commission_count INT := 0;
+BEGIN
+  IF p_amount_clp <= 0 THEN
+    RAISE EXCEPTION 'El monto de la liquidación debe ser mayor a cero.';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(p_affiliate_id::TEXT, 0)
+  );
+
+  IF EXISTS (
+    SELECT 1
+    FROM affiliate_payouts
+    WHERE affiliate_id = p_affiliate_id
+      AND period_from = p_period_from
+      AND period_to = p_period_to
+  ) THEN
+    RAISE EXCEPTION 'Ya existe una liquidación para ese período.';
+  END IF;
+
+  INSERT INTO affiliate_payouts (
+    affiliate_id, amount_clp, period_from, period_to, note
+  )
+  VALUES (
+    p_affiliate_id,
+    p_amount_clp,
+    p_period_from,
+    p_period_to,
+    NULLIF(BTRIM(p_note), '')
+  )
+  RETURNING * INTO v_payout;
+
+  FOR v_commission IN
+    SELECT id, amount_clp
+    FROM affiliate_commissions
+    WHERE affiliate_id = p_affiliate_id
+      AND status = 'pending'
+    ORDER BY created_at, id
+    FOR UPDATE
+  LOOP
+    EXIT WHEN v_remaining = 0;
+    IF v_commission.amount_clp <= v_remaining THEN
+      UPDATE affiliate_commissions
+      SET status = 'paid',
+          payout_id = v_payout.id
+      WHERE id = v_commission.id
+        AND status = 'pending';
+      v_remaining := v_remaining - v_commission.amount_clp;
+      v_commission_count := v_commission_count + 1;
+    END IF;
+  END LOOP;
+
+  IF v_remaining <> 0 THEN
+    RAISE EXCEPTION
+      'El monto no coincide con comisiones pendientes completas.';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'payout', to_jsonb(v_payout),
+    'commissionCount', v_commission_count
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION create_affiliate_payout_atomic(
+  UUID, INT, DATE, DATE, TEXT
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION create_affiliate_payout_atomic(
+  UUID, INT, DATE, DATE, TEXT
+) FROM anon;
+REVOKE ALL ON FUNCTION create_affiliate_payout_atomic(
+  UUID, INT, DATE, DATE, TEXT
+) FROM authenticated;
+GRANT EXECUTE ON FUNCTION create_affiliate_payout_atomic(
+  UUID, INT, DATE, DATE, TEXT
+) TO service_role;
+
 -- -----------------------------------------------------------------------------
 -- 10. Procedimiento Almacenado Atómico para Fulfill Order y Boletos
 -- -----------------------------------------------------------------------------
