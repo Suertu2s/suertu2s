@@ -1,5 +1,11 @@
 import { calcCommission } from "@/lib/admin/analytics";
-import type { DbAffiliate, DbAffiliatePayout, DbOrder } from "@/lib/db/types";
+import type {
+  DbAffiliate,
+  DbAffiliateCommission,
+  DbAffiliatePayout,
+  DbOrder,
+  DbTicket,
+} from "@/lib/db/types";
 import { publicAffiliate } from "./public";
 
 function maskEmail(email: string) {
@@ -14,6 +20,10 @@ export function buildAffiliatePortalDashboard(
   orders: DbOrder[],
   payouts: DbAffiliatePayout[],
   siteUrl: string,
+  allAffiliates: DbAffiliate[] = [affiliate],
+  commissions: DbAffiliateCommission[] = [],
+  allOrders: DbOrder[] = orders,
+  tickets: DbTicket[] = [],
 ) {
   const code = affiliate.code.toUpperCase();
   const related = orders
@@ -30,7 +40,7 @@ export function buildAffiliatePortalDashboard(
     });
 
   const salesClp = related.reduce((a, o) => a + o.total_clp, 0);
-  const commissionEarnedClp = related.reduce(
+  const legacyCommissionEarnedClp = related.reduce(
     (a, o) => a + calcCommission(o.total_clp, affiliate),
     0,
   );
@@ -41,6 +51,56 @@ export function buildAffiliatePortalDashboard(
       (a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime(),
     );
   const commissionPaidClp = myPayouts.reduce((a, p) => a + p.amount_clp, 0);
+  const myCommissions = commissions.filter(
+    (commission) =>
+      commission.affiliate_id === affiliate.id &&
+      commission.status !== "reversed",
+  );
+  const ledgerCommissionEarnedClp = myCommissions.reduce(
+    (total, commission) => total + commission.amount_clp,
+    0,
+  );
+  const sellerCommissionClp = myCommissions
+    .filter((commission) => commission.kind === "seller")
+    .reduce((total, commission) => total + commission.amount_clp, 0);
+  const directReferralCommissionClp = myCommissions
+    .filter((commission) => commission.kind === "direct_referral")
+    .reduce((total, commission) => total + commission.amount_clp, 0);
+  const commissionEarnedClp =
+    myCommissions.length > 0
+      ? ledgerCommissionEarnedClp
+      : legacyCommissionEarnedClp;
+  const sellerCommissionTotalClp =
+    myCommissions.length > 0 ? sellerCommissionClp : legacyCommissionEarnedClp;
+  const directTickets = tickets.filter((ticket) =>
+    related.some((order) => order.id === ticket.order_id),
+  ).length;
+  const directReferrals = allAffiliates.filter(
+    (candidate) =>
+      candidate.active && candidate.referred_by_affiliate_id === affiliate.id,
+  ).length;
+  const activeAffiliates = allAffiliates.filter(
+    (candidate) => candidate.active,
+  );
+  const ranking = activeAffiliates
+    .map((candidate) => {
+      const candidateOrders = allOrders.filter(
+        (order) =>
+          order.status === "paid" && order.affiliate_id === candidate.id,
+      );
+      return {
+        id: candidate.id,
+        salesClp: candidateOrders.reduce(
+          (total, order) => total + order.total_clp,
+          0,
+        ),
+      };
+    })
+    .sort((a, b) => b.salesClp - a.salesClp || a.id.localeCompare(b.id));
+  const rank = Math.max(
+    1,
+    ranking.findIndex((candidate) => candidate.id === affiliate.id) + 1,
+  );
 
   const base = siteUrl.replace(/\/$/, "");
   const shareUrl = `${base}/?ref=${encodeURIComponent(code)}`;
@@ -54,17 +114,32 @@ export function buildAffiliatePortalDashboard(
       commissionEarnedClp,
       commissionPaidClp,
       commissionBalanceClp: commissionEarnedClp - commissionPaidClp,
-      commissionLabel:
-        affiliate.commission_type === "percent"
-          ? `${affiliate.commission_value}% por venta`
-          : `$${Math.round(affiliate.commission_value).toLocaleString("es-CL")} fijo por venta`,
+      directReferralCommissionClp,
+      sellerCommissionClp: sellerCommissionTotalClp,
+      directTickets,
+      directReferrals,
+      levelRatePercent: directTickets >= 500 ? 12 : 10,
+      escalationTickets: 500,
+      ticketsRemaining: Math.max(0, 500 - directTickets),
+      rank,
+      totalAffiliates: activeAffiliates.length,
+      commissionLabel: `${directTickets >= 500 ? 12 : 10}% por venta propia`,
     },
     recentSales: related.slice(0, 25).map((o) => ({
       id: o.id,
       paidAt: o.paid_at || o.created_at,
       totalClp: o.total_clp,
       emailMasked: maskEmail(o.email),
-      commissionClp: calcCommission(o.total_clp, affiliate),
+      commissionClp:
+        myCommissions.find(
+          (commission) =>
+            commission.order_id === o.id && commission.kind === "seller",
+        )?.amount_clp || calcCommission(o.total_clp, affiliate),
+      commissionRatePercent:
+        myCommissions.find(
+          (commission) =>
+            commission.order_id === o.id && commission.kind === "seller",
+        )?.rate_percent || (directTickets >= 500 ? 12 : 10),
     })),
     payouts: myPayouts.map((p) => ({
       id: p.id,

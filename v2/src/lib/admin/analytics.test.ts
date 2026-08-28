@@ -20,6 +20,10 @@ const affiliate: DbAffiliate = {
   active: true,
   notes: null,
   password_hash: null,
+  referred_by_affiliate_id: null,
+  invitation_status: "active",
+  invite_token_hash: null,
+  invite_expires_at: null,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 };
@@ -35,6 +39,7 @@ function order(
     status: "paid",
     payment_provider: "mock",
     payment_external_id: null,
+    is_test: false,
     raffle_id: "r1",
     referral_code: "TEST10",
     referral_name: "Tester",

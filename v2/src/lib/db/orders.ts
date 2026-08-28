@@ -3,10 +3,12 @@ import { RAFFLE } from "@/data/packs";
 import { assertRaffleAcceptsOrders } from "@/lib/catalog/orders-guard";
 import { getPackById, getRaffle } from "@/lib/catalog/store";
 import { hashPassword } from "@/lib/security/password";
+import { calculateCommissionEntries } from "@/lib/affiliate/commission-engine";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
 import {
   memoryCreateOrder,
   memoryCreatePayout,
+  memoryEnsureOrderCommissions,
   memoryFindAffiliateByEmail,
   memoryFulfillOrder,
   memoryGetAffiliateById,
@@ -17,6 +19,7 @@ import {
   memoryListAffiliates,
   memoryListOrderItems,
   memoryListOrders,
+  memoryListCommissions,
   memoryListPayouts,
   memoryListTickets,
   memoryLookupTickets,
@@ -25,11 +28,13 @@ import {
   memorySeedDemoSales,
   memorySetPaymentExternal,
   memoryUpsertAffiliate,
+  memoryAllocateCommissionsToPayout,
 } from "./memory";
 import type {
   CheckoutInput,
   CommissionType,
   DbAffiliate,
+  DbAffiliateCommission,
   DbAffiliatePayout,
   DbOrder,
   DbOrderItem,
@@ -71,6 +76,7 @@ function mapOrder(row: any): DbOrder {
     payment_external_id: row.payment_external_id
       ? String(row.payment_external_id)
       : null,
+    is_test: Boolean(row.is_test),
     total_clp: Number(row.total_clp),
     raffle_id: String(row.raffle_id),
     referral_code: row.referral_code ? String(row.referral_code) : null,
@@ -133,6 +139,19 @@ function mapAffiliate(row: any): DbAffiliate {
     active: Boolean(row.active),
     notes: row.notes ? String(row.notes) : null,
     password_hash: row.password_hash ? String(row.password_hash) : null,
+    referred_by_affiliate_id: row.referred_by_affiliate_id
+      ? String(row.referred_by_affiliate_id)
+      : null,
+    invitation_status:
+      row.invitation_status === "pending" ? "pending" : "active",
+    invite_token_hash: row.invite_token_hash
+      ? String(row.invite_token_hash)
+      : null,
+    invite_expires_at: row.invite_expires_at
+      ? row.invite_expires_at instanceof Date
+        ? row.invite_expires_at.toISOString()
+        : String(row.invite_expires_at)
+      : null,
     created_at:
       row.created_at instanceof Date
         ? row.created_at.toISOString()
@@ -141,6 +160,28 @@ function mapAffiliate(row: any): DbAffiliate {
       row.updated_at instanceof Date
         ? row.updated_at.toISOString()
         : String(row.updated_at),
+  };
+}
+
+function mapCommission(row: any): DbAffiliateCommission {
+  return {
+    id: String(row.id),
+    order_id: String(row.order_id),
+    affiliate_id: String(row.affiliate_id),
+    kind: row.kind === "direct_referral" ? "direct_referral" : "seller",
+    rate_percent: Number(row.rate_percent),
+    base_clp: Number(row.base_clp),
+    amount_clp: Number(row.amount_clp),
+    direct_tickets_before: Number(row.direct_tickets_before || 0),
+    status:
+      row.status === "paid" || row.status === "reversed"
+        ? row.status
+        : "pending",
+    payout_id: row.payout_id ? String(row.payout_id) : null,
+    created_at:
+      row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : String(row.created_at),
   };
 }
 
@@ -371,6 +412,7 @@ export async function createOrder(input: CheckoutInput) {
       phone: input.phone.trim(),
       status: "pending",
       payment_provider: input.provider,
+      is_test: input.provider === "mock",
       total_clp: total,
       raffle_id: raffleUuid,
       referral_code: referral.code,
@@ -380,7 +422,9 @@ export async function createOrder(input: CheckoutInput) {
     });
 
     if (orderError) {
-      throw new Error(`Error al crear orden en Supabase: ${orderError.message}`);
+      throw new Error(
+        `Error al crear orden en Supabase: ${orderError.message}`,
+      );
     }
 
     const { error: itemsError } = await supabase.from("order_items").insert(
@@ -472,6 +516,7 @@ export async function fulfillOrder(orderId: string) {
       );
 
       if (!error && data) {
+        await ensureOrderCommissionsSafely(orderId);
         return {
           order: mapOrder(data.order),
           tickets: (data.tickets || []).map(mapTicket),
@@ -513,6 +558,7 @@ export async function fulfillOrder(orderId: string) {
         .eq("order_id", orderId)
         .order("number");
 
+      await ensureOrderCommissionsSafely(orderId);
       return {
         order,
         tickets: (tickets || []).map(mapTicket),
@@ -535,7 +581,9 @@ export async function fulfillOrder(orderId: string) {
       .in("status", ["pending", "failed"]);
 
     if (updateErr) {
-      throw new Error(`Error al actualizar estado del pedido: ${updateErr.message}`);
+      throw new Error(
+        `Error al actualizar estado del pedido: ${updateErr.message}`,
+      );
     }
 
     // Comprobar si ya existen tickets
@@ -546,6 +594,7 @@ export async function fulfillOrder(orderId: string) {
       .order("number");
 
     if (existingTickets && existingTickets.length > 0) {
+      await ensureOrderCommissionsSafely(orderId);
       return {
         order: { ...order, status: "paid" as const, paid_at: paidAt },
         tickets: existingTickets.map(mapTicket),
@@ -632,7 +681,9 @@ export async function fulfillOrder(orderId: string) {
     };
   }
 
-  return memoryFulfillOrder(orderId);
+  const fulfilled = memoryFulfillOrder(orderId);
+  await ensureOrderCommissionsSafely(orderId);
+  return fulfilled;
 }
 
 export async function lookupTicketsByEmail(email: string) {
@@ -697,8 +748,7 @@ export async function listRecentPaidPurchases(
       }>;
       const primary = items[0];
       if (!primary || !row.paid_at) continue;
-      const catalogId =
-        PACK_ID_BY_UUID[primary.pack_id] || primary.pack_id;
+      const catalogId = PACK_ID_BY_UUID[primary.pack_id] || primary.pack_id;
       rows.push({
         orderId: String(row.id),
         fullName: String(row.full_name || "Comprador"),
@@ -945,6 +995,186 @@ export async function listPayouts() {
   return memoryListPayouts();
 }
 
+export async function listCommissions() {
+  ensureDemoSeed();
+
+  if (isSupabaseConfigured()) {
+    try {
+      const data = await fetchAllRows<Record<string, unknown>>(
+        "affiliate_commissions",
+        "*",
+        "created_at",
+        true,
+      );
+      return data.map(mapCommission);
+    } catch (error) {
+      // Permite que la app siga funcionando mientras se ejecuta la migración
+      // comercial en Supabase; el trigger SQL será la fuente definitiva.
+      if (String(error).includes("affiliate_commissions")) return [];
+      throw error;
+    }
+  }
+
+  return memoryListCommissions();
+}
+
+/**
+ * Garantiza la comisión para pedidos pagados creados antes de instalar el
+ * trigger SQL o para el fallback local. Las restricciones únicas hacen que
+ * webhook, retorno y reintentos sean idempotentes.
+ */
+export async function ensureOrderCommissions(orderId: string) {
+  const detail = await getOrderDetail(orderId);
+  if (
+    !detail ||
+    detail.order.status !== "paid" ||
+    detail.order.is_test ||
+    !detail.tickets.length
+  ) {
+    return [];
+  }
+
+  const seller = detail.order.affiliate_id
+    ? await getAffiliateById(detail.order.affiliate_id)
+    : null;
+  if (!seller) return [];
+
+  const [affiliates, orders, tickets, existing] = await Promise.all([
+    listAffiliates(),
+    listOrders(),
+    listTickets(),
+    listCommissions(),
+  ]);
+  const directTicketsBefore = tickets.filter((ticket) => {
+    if (ticket.order_id === orderId) return false;
+    const sourceOrder = orders.find((order) => order.id === ticket.order_id);
+    return (
+      sourceOrder?.status === "paid" &&
+      !sourceOrder.is_test &&
+      sourceOrder.affiliate_id === seller.id
+    );
+  }).length;
+  const directReferrer = seller.referred_by_affiliate_id
+    ? affiliates.find(
+        (affiliate) =>
+          affiliate.id === seller.referred_by_affiliate_id && affiliate.active,
+      )
+    : null;
+  const entries = calculateCommissionEntries({
+    order: detail.order,
+    seller,
+    directReferrer,
+    directTicketsBefore,
+    createdAt: detail.order.paid_at || detail.order.created_at,
+  });
+  const missing = entries.filter(
+    (entry) =>
+      !existing.some(
+        (commission) =>
+          commission.order_id === entry.order_id &&
+          commission.affiliate_id === entry.affiliate_id &&
+          commission.kind === entry.kind,
+      ),
+  );
+  if (!missing.length) {
+    return existing.filter((commission) => commission.order_id === orderId);
+  }
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase.from("affiliate_commissions").upsert(
+      missing.map((entry) => ({
+        id: randomUUID(),
+        ...entry,
+      })),
+      { onConflict: "order_id,affiliate_id,kind", ignoreDuplicates: true },
+    );
+    if (error) {
+      throw new Error(
+        `Error al registrar comisiones en Supabase: ${error.message}`,
+      );
+    }
+    return (await listCommissions()).filter(
+      (commission) => commission.order_id === orderId,
+    );
+  }
+
+  return memoryEnsureOrderCommissions(
+    missing.map((entry) => ({ id: randomUUID(), ...entry })),
+  );
+}
+
+async function ensureOrderCommissionsSafely(orderId: string) {
+  try {
+    return await ensureOrderCommissions(orderId);
+  } catch (error) {
+    if (String(error).includes("affiliate_commissions")) return [];
+    throw error;
+  }
+}
+
+async function allocateCommissionsToPayout(
+  affiliateId: string,
+  payoutId: string,
+  amount: number,
+) {
+  const commissions = (await listCommissions())
+    .filter(
+      (commission) =>
+        commission.affiliate_id === affiliateId &&
+        commission.status === "pending",
+    )
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const selected = selectCommissionsForPayout(commissions, amount);
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseAdmin();
+    for (const commission of selected) {
+      const { error } = await supabase
+        .from("affiliate_commissions")
+        .update({ status: "paid", payout_id: payoutId })
+        .eq("id", commission.id)
+        .eq("status", "pending");
+      if (error)
+        throw new Error(`Error al asignar comisión pagada: ${error.message}`);
+    }
+  } else {
+    memoryAllocateCommissionsToPayout(affiliateId, payoutId, amount);
+  }
+}
+
+function selectCommissionsForPayout(
+  commissions: DbAffiliateCommission[],
+  amount: number,
+) {
+  const requested = Math.round(amount);
+  if (requested <= 0) throw new Error("Monto inválido");
+  const available = commissions.reduce(
+    (total, commission) => total + commission.amount_clp,
+    0,
+  );
+  if (requested > available) {
+    throw new Error(
+      `El pago supera el saldo disponible (${available.toLocaleString("es-CL")})`,
+    );
+  }
+
+  let remaining = requested;
+  const selected: DbAffiliateCommission[] = [];
+  for (const commission of commissions) {
+    if (remaining <= 0) break;
+    if (commission.amount_clp <= remaining) {
+      selected.push(commission);
+      remaining -= commission.amount_clp;
+    }
+  }
+  if (remaining !== 0) {
+    throw new Error(
+      "El monto debe coincidir con una o más comisiones completas pendientes.",
+    );
+  }
+  return selected;
+}
+
 export async function createPayout(input: {
   affiliate_id: string;
   amount_clp: number;
@@ -958,6 +1188,14 @@ export async function createPayout(input: {
   const from = input.period_from.slice(0, 10);
   const to = input.period_to.slice(0, 10);
   const note = input.note?.trim() || null;
+  const pendingCommissions = (await listCommissions())
+    .filter(
+      (commission) =>
+        commission.affiliate_id === input.affiliate_id &&
+        commission.status === "pending",
+    )
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  selectCommissionsForPayout(pendingCommissions, amount);
 
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseAdmin();
@@ -979,10 +1217,22 @@ export async function createPayout(input: {
     if (error || !data) {
       throw new Error(`Error al crear payout en Supabase: ${error?.message}`);
     }
-    return mapPayout(data);
+    const payout = mapPayout(data);
+    await allocateCommissionsToPayout(
+      input.affiliate_id,
+      payout.id,
+      payout.amount_clp,
+    );
+    return payout;
   }
 
-  return memoryCreatePayout(input);
+  const payout = memoryCreatePayout(input);
+  await allocateCommissionsToPayout(
+    input.affiliate_id,
+    payout.id,
+    payout.amount_clp,
+  );
+  return payout;
 }
 
 export async function upsertAffiliate(
@@ -1017,6 +1267,10 @@ export async function upsertAffiliate(
         commission_value: input.commission_value ?? 10,
         active: input.active ?? true,
         notes: input.notes ?? null,
+        referred_by_affiliate_id: input.referred_by_affiliate_id ?? null,
+        invitation_status: input.invitation_status ?? "active",
+        invite_token_hash: input.invite_token_hash ?? null,
+        invite_expires_at: input.invite_expires_at ?? null,
         updated_at: new Date().toISOString(),
       };
 
@@ -1030,7 +1284,9 @@ export async function upsertAffiliate(
         .eq("id", affiliateId);
 
       if (error) {
-        throw new Error(`Error al actualizar afiliado en Supabase: ${error.message}`);
+        throw new Error(
+          `Error al actualizar afiliado en Supabase: ${error.message}`,
+        );
       }
 
       const updated = await getAffiliateById(affiliateId);
@@ -1050,12 +1306,18 @@ export async function upsertAffiliate(
         active: input.active ?? true,
         notes: input.notes ?? null,
         password_hash: password_hash ?? null,
+        referred_by_affiliate_id: input.referred_by_affiliate_id ?? null,
+        invitation_status: input.invitation_status ?? "active",
+        invite_token_hash: input.invite_token_hash ?? null,
+        invite_expires_at: input.invite_expires_at ?? null,
         created_at: now,
         updated_at: now,
       });
 
       if (error) {
-        throw new Error(`Error al crear afiliado en Supabase: ${error.message}`);
+        throw new Error(
+          `Error al crear afiliado en Supabase: ${error.message}`,
+        );
       }
 
       const created = await getAffiliateById(affiliateId);

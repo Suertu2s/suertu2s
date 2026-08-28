@@ -10,6 +10,7 @@ import {
 import type {
   CheckoutInput,
   DbAffiliate,
+  DbAffiliateCommission,
   DbAffiliatePayout,
   DbOrder,
   DbOrderItem,
@@ -22,6 +23,7 @@ type Store = {
   items: DbOrderItem[];
   tickets: DbTicket[];
   affiliates: DbAffiliate[];
+  commissions: DbAffiliateCommission[];
   payouts: DbAffiliatePayout[];
   demoSeeded: boolean;
 };
@@ -43,6 +45,7 @@ function store(): Store {
       items: [],
       tickets: [],
       affiliates: seedAffiliates(),
+      commissions: [],
       payouts: [],
       demoSeeded: false,
     };
@@ -50,6 +53,7 @@ function store(): Store {
 
   const s = globalStore.__suertuStore as Store;
   if (!Array.isArray(s.affiliates)) s.affiliates = seedAffiliates();
+  if (!Array.isArray(s.commissions)) s.commissions = [];
   if (!Array.isArray(s.orders)) s.orders = [];
   if (!Array.isArray(s.items)) s.items = [];
   if (!Array.isArray(s.tickets)) s.tickets = [];
@@ -101,6 +105,10 @@ export function memoryEnsureAffiliate(code: string, name?: string) {
     active: true,
     notes: "Creado automáticamente al usarse en una compra",
     password_hash: null,
+    referred_by_affiliate_id: null,
+    invitation_status: "active",
+    invite_token_hash: null,
+    invite_expires_at: null,
     created_at: now,
     updated_at: now,
   };
@@ -134,6 +142,14 @@ export function memoryUpsertAffiliate(
       input.commission_value ?? existing.commission_value;
     existing.active = input.active ?? existing.active;
     existing.notes = input.notes ?? existing.notes;
+    existing.referred_by_affiliate_id =
+      input.referred_by_affiliate_id ?? existing.referred_by_affiliate_id;
+    existing.invitation_status =
+      input.invitation_status ?? existing.invitation_status;
+    existing.invite_token_hash =
+      input.invite_token_hash ?? existing.invite_token_hash;
+    existing.invite_expires_at =
+      input.invite_expires_at ?? existing.invite_expires_at;
     if (input.password_hash !== undefined) {
       existing.password_hash = input.password_hash;
     }
@@ -152,6 +168,10 @@ export function memoryUpsertAffiliate(
     active: input.active ?? true,
     notes: input.notes ?? null,
     password_hash: input.password_hash ?? null,
+    referred_by_affiliate_id: input.referred_by_affiliate_id ?? null,
+    invitation_status: input.invitation_status ?? "active",
+    invite_token_hash: input.invite_token_hash ?? null,
+    invite_expires_at: input.invite_expires_at ?? null,
     created_at: now,
     updated_at: now,
   };
@@ -215,6 +235,7 @@ export function memoryCreateOrder(input: CheckoutInput) {
     status: "pending",
     payment_provider: input.provider,
     payment_external_id: null,
+    is_test: input.provider === "mock",
     total_clp: total,
     raffle_id: getRaffle().id,
     referral_code: referralCode,
@@ -284,6 +305,56 @@ export function memoryListPayouts() {
   return [...store().payouts].sort(
     (a, b) => +new Date(b.paid_at) - +new Date(a.paid_at),
   );
+}
+
+export function memoryListCommissions() {
+  return [...store().commissions].sort(
+    (a, b) => +new Date(a.created_at) - +new Date(b.created_at),
+  );
+}
+
+export function memoryEnsureOrderCommissions(
+  entries: Array<Omit<DbAffiliateCommission, "id">>,
+) {
+  const s = store();
+  for (const entry of entries) {
+    const existing = s.commissions.find(
+      (commission) =>
+        commission.order_id === entry.order_id &&
+        commission.affiliate_id === entry.affiliate_id &&
+        commission.kind === entry.kind,
+    );
+    if (existing) continue;
+    s.commissions.push({ ...entry, id: randomUUID() });
+  }
+  return s.commissions.filter((commission) =>
+    entries.some(
+      (entry) =>
+        entry.order_id === commission.order_id &&
+        entry.affiliate_id === commission.affiliate_id,
+    ),
+  );
+}
+
+export function memoryAllocateCommissionsToPayout(
+  affiliateId: string,
+  payoutId: string,
+  amount: number,
+) {
+  let remaining = Math.round(amount);
+  for (const commission of memoryListCommissions()) {
+    if (
+      remaining <= 0 ||
+      commission.affiliate_id !== affiliateId ||
+      commission.status !== "pending"
+    ) {
+      continue;
+    }
+    if (commission.amount_clp > remaining) continue;
+    commission.status = "paid";
+    commission.payout_id = payoutId;
+    remaining -= commission.amount_clp;
+  }
 }
 
 export function memoryCreatePayout(input: {

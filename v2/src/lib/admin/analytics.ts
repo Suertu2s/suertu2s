@@ -8,6 +8,7 @@ import {
 import type {
   DbAffiliate,
   DbAffiliatePayout,
+  DbAffiliateCommission,
   DbOrder,
   DbOrderItem,
   DbTicket,
@@ -194,6 +195,12 @@ export type AffiliateStat = {
   commissionEarnedClp: number;
   commissionPaidClp: number;
   commissionBalanceClp: number;
+  directTickets: number;
+  directReferrals: number;
+  sellerCommissionClp: number;
+  directReferralCommissionClp: number;
+  levelRatePercent: number;
+  rank?: number;
   lastUsedAt: string | null;
 };
 
@@ -215,9 +222,15 @@ export function buildAffiliateStats(
   payouts: DbAffiliatePayout[],
   from: Date,
   to: Date,
+  commissions: DbAffiliateCommission[] = [],
+  tickets: DbTicket[] = [],
 ): AffiliateStat[] {
-  const paidInRange = filterOrdersByRange(orders, from, to, true);
-  const allPaid = orders.filter((o) => o.status === "paid");
+  const paidInRange = filterOrdersByRange(orders, from, to, true).filter(
+    (order) => !order.is_test,
+  );
+  const allPaid = orders.filter(
+    (order) => order.status === "paid" && !order.is_test,
+  );
 
   return affiliates
     .map((affiliate) => {
@@ -238,6 +251,29 @@ export function buildAffiliateStats(
         (acc, o) => acc + calcCommission(o.total_clp, affiliate),
         0,
       );
+      const affiliateCommissions = commissions.filter(
+        (commission) =>
+          commission.affiliate_id === affiliate.id &&
+          commission.status !== "reversed",
+      );
+      const ledgerEarned = affiliateCommissions.reduce(
+        (acc, commission) => acc + commission.amount_clp,
+        0,
+      );
+      const sellerCommissionClp = affiliateCommissions
+        .filter((commission) => commission.kind === "seller")
+        .reduce((acc, commission) => acc + commission.amount_clp, 0);
+      const directReferralCommissionClp = affiliateCommissions
+        .filter((commission) => commission.kind === "direct_referral")
+        .reduce((acc, commission) => acc + commission.amount_clp, 0);
+      const directOrderIds = new Set(
+        relatedLifetime
+          .filter((order) => order.affiliate_id === affiliate.id)
+          .map((order) => order.id),
+      );
+      const directTickets = tickets.filter((ticket) =>
+        directOrderIds.has(ticket.order_id),
+      ).length;
       const commissionPaidLifetime = payouts
         .filter((p) => p.affiliate_id === affiliate.id)
         .reduce((acc, p) => acc + p.amount_clp, 0);
@@ -252,14 +288,30 @@ export function buildAffiliateStats(
         uses: relatedInRange.length,
         ordersPaid: relatedInRange.length,
         salesClp,
-        commissionEarnedClp: commissionEarnedLifetime,
+        commissionEarnedClp:
+          affiliateCommissions.length > 0
+            ? ledgerEarned
+            : commissionEarnedLifetime,
         commissionPaidClp: commissionPaidLifetime,
         commissionBalanceClp:
-          commissionEarnedLifetime - commissionPaidLifetime,
+          (affiliateCommissions.length > 0
+            ? ledgerEarned
+            : commissionEarnedLifetime) - commissionPaidLifetime,
+        directTickets,
+        directReferrals: affiliates.filter(
+          (candidate) => candidate.referred_by_affiliate_id === affiliate.id,
+        ).length,
+        sellerCommissionClp:
+          affiliateCommissions.length > 0
+            ? sellerCommissionClp
+            : commissionEarnedLifetime,
+        directReferralCommissionClp,
+        levelRatePercent: directTickets >= 500 ? 12 : 10,
         lastUsedAt: last || null,
       };
     })
-    .sort(compareAffiliateStatsBySales);
+    .sort(compareAffiliateStatsBySales)
+    .map((stat, index) => ({ ...stat, rank: index + 1 }));
 }
 
 /** @deprecated alias — commissionOwedClp maps to balance for older callers */
@@ -407,12 +459,22 @@ export function buildBusinessAnalytics(input: {
   tickets: DbTicket[];
   affiliates: DbAffiliate[];
   payouts: DbAffiliatePayout[];
+  commissions?: DbAffiliateCommission[];
   from: Date;
   to: Date;
   prizeId?: string | null;
 }) {
-  const { orders, items, tickets, affiliates, payouts, from, to, prizeId } =
-    input;
+  const {
+    orders,
+    items,
+    tickets,
+    affiliates,
+    payouts,
+    commissions = [],
+    from,
+    to,
+    prizeId,
+  } = input;
   const kpis = buildSalesKpis(orders, from, to);
   const packMix = buildPackMix(orders, items, from, to);
   const providerMix = buildProviderMix(orders, from, to);
@@ -422,6 +484,8 @@ export function buildBusinessAnalytics(input: {
     payouts,
     from,
     to,
+    commissions,
+    tickets,
   );
 
   const paid = filterOrdersByRange(orders, from, to, true);
@@ -550,8 +614,7 @@ export function buildBusinessAnalytics(input: {
   const avgDailyTickets = Number((ticketsInPeriod / daySpan).toFixed(2));
   const projectedTicketsToEnd =
     ticketsTowardGoal + Math.round(avgDailyTickets * daysLeft);
-  const onTrack =
-    ticketGoal > 0 ? projectedTicketsToEnd >= ticketGoal : null;
+  const onTrack = ticketGoal > 0 ? projectedTicketsToEnd >= ticketGoal : null;
   const onTrackMin =
     minTicketGoal > 0 ? projectedTicketsToEnd >= minTicketGoal : null;
 

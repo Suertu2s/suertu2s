@@ -4,6 +4,7 @@ import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
 import { buildBusinessAnalytics } from "@/lib/admin/analytics";
 import {
   listAffiliates,
+  listCommissions,
   listOrderItems,
   listOrders,
   listPayouts,
@@ -23,13 +24,15 @@ export async function GET(req: NextRequest) {
     await ensureCatalogSynced();
     const { from, to } = parseDateRange(req);
     const prizeId = req.nextUrl.searchParams.get("prizeId");
-    const [orders, items, tickets, affiliates, payouts] = await Promise.all([
-      listOrders(),
-      listOrderItems(),
-      listTickets(),
-      listAffiliates(),
-      listPayouts(),
-    ]);
+    const [orders, items, tickets, affiliates, payouts, commissions] =
+      await Promise.all([
+        listOrders(),
+        listOrderItems(),
+        listTickets(),
+        listAffiliates(),
+        listPayouts(),
+        listCommissions(),
+      ]);
 
     const analytics = buildBusinessAnalytics({
       orders,
@@ -37,6 +40,7 @@ export async function GET(req: NextRequest) {
       tickets,
       affiliates,
       payouts,
+      commissions,
       from,
       to,
       prizeId,

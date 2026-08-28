@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedAffiliate } from "@/lib/affiliate/auth";
 import { buildAffiliatePortalDashboard } from "@/lib/affiliate/dashboard";
-import { listOrdersByAffiliate, listPayouts } from "@/lib/db/orders";
+import {
+  listAffiliates,
+  listCommissions,
+  listOrders,
+  listOrdersByAffiliate,
+  listPayouts,
+  listTickets,
+} from "@/lib/db/orders";
 import { logServerError, publicError } from "@/lib/security/errors";
 
 export const runtime = "nodejs";
@@ -23,15 +30,24 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [orders, payouts] = await Promise.all([
-      listOrdersByAffiliate(affiliate.id),
-      listPayouts(),
-    ]);
+    const [orders, payouts, affiliates, commissions, allOrders, tickets] =
+      await Promise.all([
+        listOrdersByAffiliate(affiliate.id),
+        listPayouts(),
+        listAffiliates(),
+        listCommissions(),
+        listOrders(),
+        listTickets(),
+      ]);
     const dashboard = buildAffiliatePortalDashboard(
       affiliate,
       orders,
       payouts,
       siteUrl(req),
+      affiliates,
+      commissions,
+      allOrders,
+      tickets,
     );
     return NextResponse.json(dashboard);
   } catch (error) {

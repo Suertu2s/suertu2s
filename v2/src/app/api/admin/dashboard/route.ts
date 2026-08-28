@@ -10,6 +10,7 @@ import {
 import { getRaffle, syncCatalogFromDb } from "@/lib/catalog/store";
 import {
   listAffiliates,
+  listCommissions,
   listOrderItems,
   listOrders,
   listPayouts,
@@ -31,13 +32,15 @@ export async function GET(req: NextRequest) {
     await syncCatalogFromDb();
 
     const { from, to } = parseDateRange(req);
-    const [orders, affiliates, items, payouts, tickets] = await Promise.all([
-      listOrders(),
-      listAffiliates(),
-      listOrderItems(),
-      listPayouts(),
-      listTickets(),
-    ]);
+    const [orders, affiliates, items, payouts, tickets, commissions] =
+      await Promise.all([
+        listOrders(),
+        listAffiliates(),
+        listOrderItems(),
+        listPayouts(),
+        listTickets(),
+        listCommissions(),
+      ]);
 
     const kpis = buildSalesKpis(orders, from, to);
     const affiliateStats = buildAffiliateStats(
@@ -46,6 +49,8 @@ export async function GET(req: NextRequest) {
       payouts,
       from,
       to,
+      commissions,
+      tickets,
     );
     const orphanCodes = buildOrphanReferralStats(affiliates, orders, from, to);
     const providerMix = buildProviderMix(orders, from, to);

@@ -1,6 +1,8 @@
 export type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
 export type PaymentProvider = "flow" | "mock";
 export type CommissionType = "percent" | "fixed";
+export type AffiliateCommissionKind = "seller" | "direct_referral";
+export type AffiliateCommissionStatus = "pending" | "paid" | "reversed";
 
 export type DbAffiliate = {
   id: string;
@@ -14,6 +16,10 @@ export type DbAffiliate = {
   notes: string | null;
   /** scrypt hash for portal login — never send to clients */
   password_hash: string | null;
+  referred_by_affiliate_id: string | null;
+  invitation_status: "active" | "pending";
+  invite_token_hash: string | null;
+  invite_expires_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -27,6 +33,7 @@ export type DbOrder = {
   status: OrderStatus;
   payment_provider: PaymentProvider | null;
   payment_external_id: string | null;
+  is_test: boolean;
   total_clp: number;
   raffle_id: string;
   referral_code: string | null;
@@ -67,6 +74,20 @@ export type DbAffiliatePayout = {
   period_to: string;
   note: string | null;
   paid_at: string;
+  created_at: string;
+};
+
+export type DbAffiliateCommission = {
+  id: string;
+  order_id: string;
+  affiliate_id: string;
+  kind: AffiliateCommissionKind;
+  rate_percent: number;
+  base_clp: number;
+  amount_clp: number;
+  direct_tickets_before: number;
+  status: AffiliateCommissionStatus;
+  payout_id: string | null;
   created_at: string;
 };
 

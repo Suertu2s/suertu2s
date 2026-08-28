@@ -24,6 +24,8 @@ export type Affiliate = {
   commission_value: number;
   active: boolean;
   notes: string | null;
+  referred_by_affiliate_id?: string | null;
+  invitation_status?: "active" | "pending";
 };
 
 export type AffiliateStat = {
@@ -34,6 +36,12 @@ export type AffiliateStat = {
   commissionEarnedClp: number;
   commissionPaidClp: number;
   commissionBalanceClp: number;
+  directTickets?: number;
+  directReferrals?: number;
+  sellerCommissionClp?: number;
+  directReferralCommissionClp?: number;
+  levelRatePercent?: number;
+  rank?: number;
   lastUsedAt: string | null;
 };
 

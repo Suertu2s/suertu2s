@@ -9,8 +9,10 @@ import {
 import { publicAffiliate, publicAffiliates } from "@/lib/affiliate/public";
 import {
   listAffiliates,
+  listCommissions,
   listOrders,
   listPayouts,
+  listTickets,
   upsertAffiliate,
 } from "@/lib/db/orders";
 
@@ -22,11 +24,14 @@ export async function GET(req: NextRequest) {
   try {
     await ensureCatalogSynced();
     const { from, to } = parseDateRange(req);
-    const [affiliates, orders, payouts] = await Promise.all([
-      listAffiliates(),
-      listOrders(),
-      listPayouts(),
-    ]);
+    const [affiliates, orders, payouts, commissions, tickets] =
+      await Promise.all([
+        listAffiliates(),
+        listOrders(),
+        listPayouts(),
+        listCommissions(),
+        listTickets(),
+      ]);
 
     const stats = buildAffiliateStats(
       affiliates,
@@ -34,6 +39,8 @@ export async function GET(req: NextRequest) {
       payouts,
       from,
       to,
+      commissions,
+      tickets,
     ).map((s) => ({
       ...s,
       affiliate: publicAffiliate(s.affiliate),
@@ -62,6 +69,7 @@ const upsertSchema = z.object({
   commission_type: z.enum(["percent", "fixed"]).default("percent"),
   commission_value: z.number().nonnegative().default(10),
   active: z.boolean().default(true),
+  referred_by_affiliate_id: z.string().uuid().nullable().optional(),
   notes: z.string().optional().nullable(),
   password: z.string().min(6).max(120).optional().nullable(),
 });
@@ -87,6 +95,26 @@ export async function POST(req: NextRequest) {
     const existing = (await listAffiliates()).find(
       (a) => a.code.toUpperCase() === body.code.toUpperCase().trim(),
     );
+    if (
+      body.referred_by_affiliate_id &&
+      body.referred_by_affiliate_id === existing?.id
+    ) {
+      return NextResponse.json(
+        { error: "Un afiliado no puede invitarse a sí mismo." },
+        { status: 400 },
+      );
+    }
+    if (body.referred_by_affiliate_id) {
+      const referrer = (await listAffiliates()).find(
+        (affiliate) => affiliate.id === body.referred_by_affiliate_id,
+      );
+      if (!referrer || !referrer.active) {
+        return NextResponse.json(
+          { error: "El invitador directo no existe o está inactivo." },
+          { status: 400 },
+        );
+      }
+    }
     if (!existing && email && !password) {
       return NextResponse.json(
         {
@@ -101,6 +129,11 @@ export async function POST(req: NextRequest) {
       ...body,
       email,
       password: password || undefined,
+      commission_type: "percent",
+      commission_value: 10,
+      invitation_status: body.active
+        ? "active"
+        : existing?.invitation_status || "active",
     });
 
     return NextResponse.json({ affiliate: publicAffiliate(affiliate) });

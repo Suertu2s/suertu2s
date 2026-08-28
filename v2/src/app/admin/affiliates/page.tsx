@@ -49,6 +49,7 @@ export default function AdminAffiliatesPage() {
     commission_type: "percent" as "percent" | "fixed",
     commission_value: 10,
     active: true,
+    referred_by_affiliate_id: "",
   });
   const [payoutForm, setPayoutForm] = useState({
     affiliate_id: "",
@@ -116,6 +117,7 @@ export default function AdminAffiliatesPage() {
           commission_type: affForm.commission_type,
           commission_value: Number(affForm.commission_value),
           active: affForm.active,
+          referred_by_affiliate_id: affForm.referred_by_affiliate_id || null,
         }),
       });
       await readJson(res, "Guardar afiliado");
@@ -127,6 +129,7 @@ export default function AdminAffiliatesPage() {
         commission_type: "percent",
         commission_value: 10,
         active: true,
+        referred_by_affiliate_id: "",
       });
       bumpRefresh();
     } catch (err) {
@@ -177,6 +180,10 @@ export default function AdminAffiliatesPage() {
               "ranking",
               "codigo",
               "nombre",
+              "invitado_por",
+              "nivel",
+              "tickets_directos",
+              "referidos_directos",
               "usos",
               "ventas",
               "devengado",
@@ -188,14 +195,19 @@ export default function AdminAffiliatesPage() {
               String(index + 1),
               s.affiliate.code,
               s.affiliate.name,
+              affiliates.find(
+                (candidate) =>
+                  candidate.id === s.affiliate.referred_by_affiliate_id,
+              )?.name || "",
+              `${s.levelRatePercent || 10}%`,
+              String(s.directTickets || 0),
+              String(s.directReferrals || 0),
               String(s.uses),
               String(s.salesClp),
               String(s.commissionEarnedClp),
               String(s.commissionPaidClp),
               String(s.commissionBalanceClp),
-              s.affiliate.commission_type === "percent"
-                ? `${s.affiliate.commission_value}%`
-                : String(s.affiliate.commission_value),
+              `${s.levelRatePercent || 10}% propia + 3% referido directo`,
             ]),
           ]}
         />
@@ -221,6 +233,32 @@ export default function AdminAffiliatesPage() {
           onChange={(v) => setAffForm((f) => ({ ...f, name: v }))}
           required
         />
+        <label className="block space-y-1.5">
+          <span className="text-[11px] text-brand-muted uppercase font-semibold">
+            Invitado por
+          </span>
+          <select
+            value={affForm.referred_by_affiliate_id}
+            onChange={(e) =>
+              setAffForm((f) => ({
+                ...f,
+                referred_by_affiliate_id: e.target.value,
+              }))
+            }
+            className="w-full bg-brand-bg border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm"
+          >
+            <option value="">Sin invitador directo</option>
+            {affiliates
+              .filter(
+                (candidate) => candidate.code !== affForm.code.toUpperCase(),
+              )
+              .map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name} ({candidate.code})
+                </option>
+              ))}
+          </select>
+        </label>
         <Field
           label="Correo (portal afiliado)"
           value={affForm.email}
@@ -267,37 +305,11 @@ export default function AdminAffiliatesPage() {
             </button>
           </div>
         </div>
-        <label className="block space-y-1">
-          <span className="text-[11px] text-brand-muted uppercase font-semibold">
-            Tipo comisión
-          </span>
-          <select
-            value={affForm.commission_type}
-            onChange={(e) =>
-              setAffForm((f) => ({
-                ...f,
-                commission_type: e.target.value as "percent" | "fixed",
-              }))
-            }
-            className="w-full bg-brand-bg border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-          >
-            <option value="percent">Porcentaje (%)</option>
-            <option value="fixed">Monto fijo (CLP)</option>
-          </select>
-        </label>
-        <Field
-          label={
-            affForm.commission_type === "percent"
-              ? "% Comisión"
-              : "Comisión fija CLP"
-          }
-          value={String(affForm.commission_value)}
-          onChange={(v) =>
-            setAffForm((f) => ({ ...f, commission_value: Number(v) || 0 }))
-          }
-          type="number"
-          required
-        />
+        <div className="rounded-lg border border-brand-gold/20 bg-brand-gold/5 px-3 py-2.5 text-sm text-brand-muted">
+          <strong className="text-brand-gold">Regla automática:</strong> 10%
+          inicial, 12% después de 500 tickets y 3% por referido directo. Tope
+          total: 15%.
+        </div>
         <label className="flex items-center gap-2 text-sm text-brand-muted sm:col-span-2">
           <input
             type="checkbox"
@@ -330,8 +342,12 @@ export default function AdminAffiliatesPage() {
           <table className="w-full text-sm text-left">
             <thead className="text-brand-muted text-[11px] uppercase">
               <tr>
-                <th className="px-3 py-2 w-10">#</th>
+                <th className="px-3 py-2">#</th>
                 <th className="px-3 py-2">Código</th>
+                <th className="px-3 py-2">Invitado por</th>
+                <th className="px-3 py-2">Nivel</th>
+                <th className="px-3 py-2">Tickets directos</th>
+                <th className="px-3 py-2">Referidos directos</th>
                 <th className="px-3 py-2">Usos</th>
                 <th className="px-3 py-2">Ventas</th>
                 <th className="px-3 py-2">Devengado</th>
@@ -356,6 +372,21 @@ export default function AdminAffiliatesPage() {
                       {!s.affiliate.active && " · inactivo"}
                     </div>
                   </td>
+                  <td className="px-3 py-2.5 text-brand-muted">
+                    {affiliates.find(
+                      (candidate) =>
+                        candidate.id === s.affiliate.referred_by_affiliate_id,
+                    )?.name || "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-brand-gold font-bold">
+                    {s.levelRatePercent || 10}%
+                  </td>
+                  <td className="px-3 py-2.5 text-white">
+                    {s.directTickets || 0}
+                  </td>
+                  <td className="px-3 py-2.5 text-white">
+                    {s.directReferrals || 0}
+                  </td>
                   <td className="px-3 py-2.5 text-white">{s.uses}</td>
                   <td className="px-3 py-2.5 text-white">
                     {formatClp(s.salesClp)}
@@ -370,9 +401,7 @@ export default function AdminAffiliatesPage() {
                     {formatClp(s.commissionBalanceClp)}
                   </td>
                   <td className="px-3 py-2.5 text-brand-muted">
-                    {s.affiliate.commission_type === "percent"
-                      ? `${s.affiliate.commission_value}%`
-                      : formatClp(Number(s.affiliate.commission_value))}
+                    {s.levelRatePercent || 10}% propia + 3% referido
                   </td>
                   <td className="px-3 py-2.5 text-brand-muted whitespace-nowrap">
                     {formatDate(s.lastUsedAt)}
@@ -381,7 +410,7 @@ export default function AdminAffiliatesPage() {
               ))}
               {!stats.length && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={12}>
                     <EmptyState title="Sin afiliados" />
                   </td>
                 </tr>

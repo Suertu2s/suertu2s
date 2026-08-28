@@ -23,6 +23,15 @@ type Dashboard = {
     commissionPaidClp: number;
     commissionBalanceClp: number;
     commissionLabel: string;
+    sellerCommissionClp: number;
+    directReferralCommissionClp: number;
+    directTickets: number;
+    directReferrals: number;
+    levelRatePercent: number;
+    escalationTickets: number;
+    ticketsRemaining: number;
+    rank: number;
+    totalAffiliates: number;
   };
   recentSales: Array<{
     id: string;
@@ -30,6 +39,7 @@ type Dashboard = {
     totalClp: number;
     emailMasked: string;
     commissionClp: number;
+    commissionRatePercent: number;
   }>;
   payouts: Array<{
     id: string;
@@ -58,6 +68,8 @@ export default function AffiliatePortalPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [copied, setCopied] = useState<"link" | "code" | "qr" | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     const res = await fetch("/api/affiliate/dashboard", {
@@ -177,6 +189,35 @@ export default function AffiliatePortalPage() {
       flashCopied("code");
     } catch {
       setError("No se pudo copiar el código.");
+    }
+  }
+
+  async function createInvite() {
+    setInviteBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/affiliate/invitation", {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = (await res.json()) as {
+        inviteUrl?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.inviteUrl) {
+        throw new Error(json.error || "No se pudo crear la invitación");
+      }
+      setInviteUrl(json.inviteUrl);
+      await navigator.clipboard.writeText(json.inviteUrl);
+      flashCopied("link");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo crear el enlace de invitación",
+      );
+    } finally {
+      setInviteBusy(false);
     }
   }
 
@@ -394,6 +435,63 @@ export default function AffiliatePortalPage() {
         </div>
       </section>
 
+      <section className="border border-brand-gold/30 rounded-2xl p-5 bg-brand-gold/5 space-y-3">
+        <h2 className="text-white font-bold text-sm uppercase tracking-wide m-0">
+          Invita colaboradores
+        </h2>
+        <p className="text-sm text-brand-muted m-0">
+          Invita vendedores directamente. Recibirás 3% de sus ventas, sin
+          niveles adicionales.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            readOnly
+            value={inviteUrl || "Genera un enlace único de invitación"}
+            className="flex-1 bg-brand-bg border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => void createInvite()}
+            disabled={inviteBusy}
+            className="bg-brand-gold text-black font-bold text-sm px-5 py-2.5 rounded-lg border-none cursor-pointer disabled:opacity-60"
+          >
+            {inviteBusy ? "Generando…" : "Generar y copiar"}
+          </button>
+        </div>
+      </section>
+
+      <section className="border border-brand-gold/30 rounded-2xl p-5 bg-brand-bgLight/30 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-white font-bold text-sm uppercase tracking-wide m-0">
+            Tu nivel comercial
+          </h2>
+          <span className="text-brand-gold font-black text-lg">
+            {summary.levelRatePercent}% por venta
+          </span>
+        </div>
+        <div className="flex justify-between text-sm text-brand-muted">
+          <span>{summary.directTickets} tickets directos pagados</span>
+          <span>Meta: {summary.escalationTickets}</span>
+        </div>
+        <div className="h-3 rounded-full bg-black/40 overflow-hidden">
+          <div
+            className="h-full bg-brand-gold transition-all"
+            style={{
+              width: `${Math.min(
+                100,
+                (summary.directTickets / summary.escalationTickets) * 100,
+              )}%`,
+            }}
+          />
+        </div>
+        <p className="text-sm text-brand-muted m-0">
+          {summary.ticketsRemaining > 0
+            ? `Te faltan ${summary.ticketsRemaining} tickets para subir al 12%.`
+            : "Ya alcanzaste el nivel máximo de comisión propia."}{" "}
+          Tu posición actual: #{summary.rank} de {summary.totalAffiliates}.
+        </p>
+      </section>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Ventas pagadas" value={String(summary.ordersPaid)} />
         <Kpi label="Plata que generaste" value={formatClp(summary.salesClp)} />
@@ -407,6 +505,21 @@ export default function AffiliatePortalPage() {
           accent
           hint={`Ya pagado: ${formatClp(summary.commissionPaidClp)}`}
         />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi
+          label="Referidos directos"
+          value={String(summary.directReferrals)}
+        />
+        <Kpi
+          label="Comisión propia"
+          value={formatClp(summary.sellerCommissionClp)}
+        />
+        <Kpi
+          label="Comisión por referidos"
+          value={formatClp(summary.directReferralCommissionClp)}
+        />
+        <Kpi label="Pagado" value={formatClp(summary.commissionPaidClp)} />
       </div>
 
       {error && (
@@ -429,6 +542,7 @@ export default function AffiliatePortalPage() {
                 <th className="px-3 py-2">Cliente</th>
                 <th className="px-3 py-2">Venta</th>
                 <th className="px-3 py-2">Tu comisión</th>
+                <th className="px-3 py-2">Tasa</th>
               </tr>
             </thead>
             <tbody>
@@ -444,12 +558,15 @@ export default function AffiliatePortalPage() {
                   <td className="px-3 py-2.5 text-brand-gold font-semibold">
                     {formatClp(s.commissionClp)}
                   </td>
+                  <td className="px-3 py-2.5 text-brand-muted">
+                    {s.commissionRatePercent}%
+                  </td>
                 </tr>
               ))}
               {!recentSales.length && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-3 py-10 text-center text-brand-muted"
                   >
                     Aún no hay ventas con tu código. Comparte tu enlace.
