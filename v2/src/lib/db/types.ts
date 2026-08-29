@@ -1,5 +1,5 @@
 export type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
-export type PaymentProvider = "flow" | "mock";
+export type PaymentProvider = "flow" | "mock" | "manual";
 export type CommissionType = "percent" | "fixed";
 export type AffiliateCommissionKind = "seller" | "direct_referral";
 export type AffiliateCommissionStatus = "pending" | "paid" | "reversed";

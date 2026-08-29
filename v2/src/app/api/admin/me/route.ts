@@ -19,5 +19,7 @@ export async function GET(req: NextRequest) {
     authenticated: true,
     configured: true,
     email: session.email,
+    mustChangePassword: session.mustChangePassword,
+    canManualSales: session.canManualSales,
   });
 }

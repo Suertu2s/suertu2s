@@ -12,8 +12,11 @@ import {
 
 type AdminContextValue = {
   email: string;
+  displayName: string;
   authed: boolean;
   authReady: boolean;
+  mustChangePassword: boolean;
+  canManualSales: boolean;
   from: string;
   to: string;
   loading: boolean;
@@ -22,6 +25,10 @@ type AdminContextValue = {
   setTo: (v: string) => void;
   setError: (v: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
+  changePassword: (
+    password: string,
+    passwordConfirmation: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   adminFetch: (path: string, init?: RequestInit) => Promise<Response>;
   readJson: <T = Record<string, unknown>>(
@@ -52,8 +59,11 @@ function defaultTo() {
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [authed, setAuthed] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [canManualSales, setCanManualSales] = useState(false);
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [loading, setLoading] = useState(false);
@@ -68,15 +78,24 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         const data = (await res.json()) as {
           authenticated?: boolean;
           email?: string;
+          displayName?: string;
+          mustChangePassword?: boolean;
+          canManualSales?: boolean;
           configured?: boolean;
         };
         if (cancelled) return;
         if (data.authenticated && data.email) {
           setEmail(data.email);
+          setDisplayName(data.displayName || data.email);
           setAuthed(true);
+          setMustChangePassword(Boolean(data.mustChangePassword));
+          setCanManualSales(Boolean(data.canManualSales));
         } else {
           setAuthed(false);
           setEmail("");
+          setDisplayName("");
+          setMustChangePassword(false);
+          setCanManualSales(false);
         }
         if (res.status === 503) {
           setError(
@@ -102,13 +121,48 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: value.trim(), password }),
     });
-    const data = (await res.json()) as { error?: string; email?: string };
+    const data = (await res.json()) as {
+      error?: string;
+      email?: string;
+      displayName?: string;
+      mustChangePassword?: boolean;
+      canManualSales?: boolean;
+    };
     if (!res.ok) {
       throw new Error(data.error || "Credenciales inválidas");
     }
     setEmail(data.email || value.trim());
+    setDisplayName(data.displayName || data.email || value.trim());
     setAuthed(true);
+    setMustChangePassword(Boolean(data.mustChangePassword));
+    setCanManualSales(Boolean(data.canManualSales));
   }, []);
+
+  const changePassword = useCallback(
+    async (password: string, passwordConfirmation: string) => {
+      setError(null);
+      const res = await fetch("/api/admin/change-password", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, passwordConfirmation }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        email?: string;
+        displayName?: string;
+        canManualSales?: boolean;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || "No se pudo cambiar la contraseña");
+      }
+      setEmail(data.email || email);
+      setDisplayName(data.displayName || displayName);
+      setMustChangePassword(false);
+      setCanManualSales(Boolean(data.canManualSales));
+    },
+    [displayName, email],
+  );
 
   const logout = useCallback(async () => {
     await fetch("/api/admin/logout", {
@@ -117,6 +171,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     });
     setAuthed(false);
     setEmail("");
+    setDisplayName("");
+    setMustChangePassword(false);
+    setCanManualSales(false);
   }, []);
 
   const bumpRefresh = useCallback(() => {
@@ -173,8 +230,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       email,
+      displayName,
       authed,
       authReady,
+      mustChangePassword,
+      canManualSales,
       from,
       to,
       loading,
@@ -183,6 +243,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setTo,
       setError,
       login,
+      changePassword,
       logout,
       adminFetch,
       readJson,
@@ -191,13 +252,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }),
     [
       email,
+      displayName,
       authed,
       authReady,
+      mustChangePassword,
+      canManualSales,
       from,
       to,
       loading,
       error,
       login,
+      changePassword,
       logout,
       adminFetch,
       readJson,

@@ -10,6 +10,7 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 export const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   flow: "Flow",
   mock: "Prueba",
+  manual: "Venta POS",
   webpay: "Webpay",
   mercadopago: "Mercado Pago",
   unknown: "Desconocido",

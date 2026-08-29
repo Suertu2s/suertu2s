@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   adminAuthConfigured,
   createAdminSessionToken,
+  getAdminAccount,
   getAllowedAdminEmails,
   setAdminSessionCookie,
   verifyAdminPassword,
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Admin no configurado. Define ADMIN_EMAILS y ADMIN_PASSWORD en el entorno.",
+            "Admin no configurado. Ejecuta la migración de cuentas admin o define las variables de entorno.",
         },
         { status: 503 },
       );
@@ -45,16 +46,35 @@ export async function POST(req: NextRequest) {
     const body = schema.parse(await req.json());
     const email = body.email.toLowerCase().trim();
     const allowed = getAllowedAdminEmails();
+    const account = await getAdminAccount(email);
 
-    if (!allowed.includes(email) || !verifyAdminPassword(body.password)) {
+    const validCredentials = account
+      ? account.active &&
+        allowed.includes(email) &&
+        verifyAdminPassword(body.password, account.password_hash)
+      : allowed.includes(email) && verifyAdminPassword(body.password);
+
+    if (!validCredentials) {
       return NextResponse.json(
         { error: "Credenciales inválidas" },
         { status: 401 },
       );
     }
 
-    const token = createAdminSessionToken(email);
-    const res = NextResponse.json({ ok: true, email });
+    const accountIndex = allowed.indexOf(email);
+    const token = createAdminSessionToken(email, {
+      mustChangePassword: account?.must_change_password ?? false,
+      canManualSales:
+        account?.can_manual_sales ?? (accountIndex === 0 || accountIndex === 1),
+    });
+    const res = NextResponse.json({
+      ok: true,
+      email,
+      displayName: account?.display_name || email,
+      mustChangePassword: account?.must_change_password ?? false,
+      canManualSales:
+        account?.can_manual_sales ?? (accountIndex === 0 || accountIndex === 1),
+    });
     setAdminSessionCookie(res, token);
     return res;
   } catch (error) {

@@ -41,11 +41,65 @@ SET commission_type = 'percent',
     commission_value = 10.00
 WHERE commission_type <> 'percent';
 
+ALTER TABLE orders
+  DROP CONSTRAINT IF EXISTS orders_payment_provider_check;
+ALTER TABLE orders
+  ADD CONSTRAINT orders_payment_provider_check
+  CHECK (payment_provider IN ('flow', 'mock', 'manual', 'transbank', 'mercadopago'));
+
 CREATE INDEX IF NOT EXISTS idx_affiliates_referred_by
   ON affiliates(referred_by_affiliate_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_affiliates_invite_token_hash
   ON affiliates(invite_token_hash)
   WHERE invite_token_hash IS NOT NULL;
+
+-- Cuentas separadas de administración.
+CREATE TABLE IF NOT EXISTS admin_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+  can_manual_sales BOOLEAN NOT NULL DEFAULT FALSE,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE admin_accounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Service role full access on admin_accounts"
+  ON admin_accounts;
+CREATE POLICY "Service role full access on admin_accounts"
+  ON admin_accounts FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+-- Solo se insertan si aún no existen; nunca se pisan contraseñas cambiadas.
+INSERT INTO admin_accounts (
+  email, display_name, password_hash, must_change_password, can_manual_sales
+)
+VALUES
+  (
+    'admin1@suertu2s.cl',
+    'Admin 1',
+    'scrypt$z6__wMt7t13kAWJx48_YSQ$w-dN_4g0xPszEy-UPu_V8TctoTmS1y94pNY5MCtVF_e1y4YvjsIvLrVsVh1FwSeKgxwcw3rSPWAKh6yTHYaoVg',
+    TRUE,
+    TRUE
+  ),
+  (
+    'admin2@suertu2s.cl',
+    'Admin 2',
+    'scrypt$y2ZpyJI2Ib9WCXRFXSpCJg$Ll3Vd0hJA4vXCl5EKpNTc--pd-OhFq3mnFXtQ9-Wz_saCbbp9vFaTKnW0M_Brkl92C4SgkRKhQrJKGo71tnJvw',
+    TRUE,
+    TRUE
+  ),
+  (
+    'admin3@suertu2s.cl',
+    'Admin 3',
+    'scrypt$5TOhAeLJPSyuqjdTe0sSMw$FPNkSjs3HcPSD_GhRZ9hNutLeB9dWzKZRKRbS3re-PIOuNRRqAn_GE0w_FFq4kMNByzdiZnSx8xzJgrQ3PcMJQ',
+    TRUE,
+    FALSE
+  )
+ON CONFLICT (email) DO NOTHING;
 
 -- Cada línea congela la tasa aplicada en la venta y evita recalcular el pasado.
 CREATE TABLE IF NOT EXISTS affiliate_commissions (

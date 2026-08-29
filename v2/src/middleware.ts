@@ -47,6 +47,16 @@ export async function middleware(req: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+    if (
+      session.mustChangePassword &&
+      !pathname.startsWith("/api/admin/me") &&
+      !pathname.startsWith("/api/admin/change-password")
+    ) {
+      return NextResponse.json(
+        { error: "Debes cambiar tu contraseña antes de continuar" },
+        { status: 403 },
+      );
+    }
   }
 
   return NextResponse.next();

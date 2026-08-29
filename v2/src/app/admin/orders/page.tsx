@@ -31,7 +31,9 @@ const PAGE_SIZE = 15;
 
 export default function AdminOrdersPage() {
   return (
-    <Suspense fallback={<p className="text-brand-muted text-sm">Cargando pedidos…</p>}>
+    <Suspense
+      fallback={<p className="text-brand-muted text-sm">Cargando pedidos…</p>}
+    >
       <AdminOrdersContent />
     </Suspense>
   );
@@ -249,6 +251,7 @@ function AdminOrdersContent() {
           >
             <option value="all">Todas</option>
             <option value="flow">Flow</option>
+            <option value="manual">Venta POS</option>
           </select>
         </label>
       </div>

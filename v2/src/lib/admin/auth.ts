@@ -12,6 +12,14 @@ export function isAdminAuthorized(req: NextRequest) {
   return Boolean(getSessionFromRequest(req));
 }
 
+export function isManualSalesAuthorized(req: NextRequest) {
+  if (!adminAuthConfigured()) return false;
+  const session = getSessionFromRequest(req);
+  return Boolean(
+    session && session.canManualSales && !session.mustChangePassword,
+  );
+}
+
 export function requireAdmin(req: NextRequest) {
   if (!isAdminAuthorized(req)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -71,15 +79,14 @@ export function parseDateRange(req: NextRequest) {
   const fromParam = req.nextUrl.searchParams.get("from");
   const toParam = req.nextUrl.searchParams.get("to");
 
-  const toYmd =
-    toParam && toParam.length <= 10 ? toParam : chileTodayYmd();
-  let fromYmd =
-    fromParam && fromParam.length <= 10 ? fromParam : "";
+  const toYmd = toParam && toParam.length <= 10 ? toParam : chileTodayYmd();
+  let fromYmd = fromParam && fromParam.length <= 10 ? fromParam : "";
 
   if (!fromYmd) {
     const toDate = chileDayBound(toYmd, false);
-    fromYmd = new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000)
-      .toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+    fromYmd = new Date(
+      toDate.getTime() - 30 * 24 * 60 * 60 * 1000,
+    ).toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
   }
 
   return {
