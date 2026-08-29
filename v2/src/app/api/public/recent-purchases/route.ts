@@ -1,27 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomInt } from "crypto";
 import { getPackById } from "@/lib/catalog/store";
-import { listRecentPaidPurchases } from "@/lib/db/orders";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function anonymizeName(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "Comprador";
-  const first = parts[0];
-  const initial = parts.length > 1 ? `${parts[1]!.charAt(0).toUpperCase()}.` : "";
-  return initial ? `${first} ${initial}` : first;
-}
+const SYNTHETIC_NAMES = [
+  "Camila R.",
+  "Javier M.",
+  "Sofía P.",
+  "Matías G.",
+  "Valentina C.",
+  "Diego A.",
+  "Antonia V.",
+  "Nicolás T.",
+  "Fernanda L.",
+  "Sebastián D.",
+  "Daniela F.",
+  "Tomás B.",
+];
 
-function timeAgoLabel(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "Hace un momento";
-  if (mins < 60) return `Hace ${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `Hace ${hours} h`;
-  return "Hace un día";
+const PACK_IDS = [
+  "pack-puerto-montt",
+  "pack-llanquihue",
+  "pack-chiloe",
+];
+
+function syntheticPurchases() {
+  return [...SYNTHETIC_NAMES]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 8)
+    .map((name, index) => {
+      const pack = getPackById(PACK_IDS[randomInt(PACK_IDS.length)]!);
+      if (!pack) return null;
+      const minutesAgo = randomInt(45) + 1;
+      return {
+        id: `activity-${Date.now()}-${index}-${randomInt(1_000_000)}`,
+        name,
+        packName: pack.name,
+        tickets: pack.ticketCount,
+        image: pack.image,
+        timeAgo: `Hace ${minutesAgo} min`,
+      };
+    })
+    .filter(Boolean);
 }
 
 export async function GET(req: NextRequest) {
@@ -34,24 +57,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ purchases: [] }, { status: 200 });
   }
 
-  const rows = await listRecentPaidPurchases(12);
-  const purchases = rows
-    .map((row) => {
-      const pack = getPackById(row.packId);
-      if (!pack) return null;
-      return {
-        id: row.orderId,
-        name: anonymizeName(row.fullName),
-        packName: pack.name,
-        tickets: row.ticketCount,
-        image: pack.image,
-        timeAgo: timeAgoLabel(row.paidAt),
-      };
-    })
-    .filter(Boolean);
-
   return NextResponse.json(
-    { purchases },
+    { purchases: syntheticPurchases() },
     {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
     },

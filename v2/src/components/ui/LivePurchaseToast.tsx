@@ -13,6 +13,10 @@ type PurchaseItem = {
   timeAgo: string;
 };
 
+function randomBetween(min: number, max: number) {
+  return Math.round(min + Math.random() * (max - min));
+}
+
 export function LivePurchaseToast() {
   const pathname = usePathname();
   const [queue, setQueue] = useState<PurchaseItem[]>([]);
@@ -40,7 +44,11 @@ export function LivePurchaseToast() {
           cache: "no-store",
         });
         const data = (await res.json()) as { purchases?: PurchaseItem[] };
-        if (!cancelled && Array.isArray(data.purchases) && data.purchases.length) {
+        if (
+          !cancelled &&
+          Array.isArray(data.purchases) &&
+          data.purchases.length
+        ) {
           setQueue(data.purchases);
         }
       } catch {
@@ -69,14 +77,17 @@ export function LivePurchaseToast() {
       setCurrent(item);
       setVisible(true);
 
-      timeoutId = setTimeout(() => {
-        if (!isMounted) return;
-        setVisible(false);
-        timeoutId = setTimeout(showNext, 8000 + Math.random() * 4000);
-      }, 4500);
+      timeoutId = setTimeout(
+        () => {
+          if (!isMounted) return;
+          setVisible(false);
+          timeoutId = setTimeout(showNext, randomBetween(10000, 22000));
+        },
+        randomBetween(4000, 6500),
+      );
     };
 
-    timeoutId = setTimeout(showNext, 2500);
+    timeoutId = setTimeout(showNext, randomBetween(5000, 14000));
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
@@ -112,10 +123,10 @@ export function LivePurchaseToast() {
 
         <div className="flex-1 min-w-0 pr-1 leading-tight">
           <p className="m-0 text-[12px] sm:text-[13px] font-extrabold text-white truncate">
-            {current.name}
+            Actividad reciente
           </p>
           <p className="m-0 mt-0.5 text-[11px] sm:text-[12px] font-medium text-[#d8c28a] leading-tight">
-            Compró{" "}
+            {current.name} eligió{" "}
             <span className="font-extrabold text-[#36f073]">
               +{current.tickets} ticket{current.tickets > 1 ? "s" : ""}
             </span>{" "}
