@@ -14,4 +14,5 @@ test("admin puede abrir el formulario de venta POS", async ({ page }) => {
   await expect(page.getByLabel("Correo")).toBeVisible();
   await expect(page.getByLabel("Teléfono")).toBeVisible();
   await expect(page.getByLabel("Pack vendido")).toBeVisible();
+  await expect(page.getByLabel("Afiliado (opcional)")).toBeVisible();
 });

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isManualSalesAuthorized } from "@/lib/admin/auth";
 import { getSessionFromRequest } from "@/lib/admin/session";
 import { ensureCatalogSynced } from "@/lib/admin/ensure-catalog";
-import { createOrder, fulfillOrder } from "@/lib/db/orders";
+import { createOrder, fulfillOrder, getAffiliateById } from "@/lib/db/orders";
 import { deliverOrderConfirmation } from "@/lib/email/deliver-confirmation";
 import { logServerError, publicError } from "@/lib/security/errors";
 
@@ -17,6 +17,7 @@ const schema = z.object({
   phone: z.string().trim().min(8).max(50),
   packId: z.string().min(1),
   quantity: z.coerce.number().int().min(1).max(100),
+  affiliateId: z.string().uuid().optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -35,6 +36,16 @@ export async function POST(req: NextRequest) {
     await ensureCatalogSynced();
 
     const fullName = `${body.firstName} ${body.lastName}`.trim();
+    const affiliate = body.affiliateId
+      ? await getAffiliateById(body.affiliateId)
+      : null;
+    if (body.affiliateId && (!affiliate || !affiliate.active)) {
+      return NextResponse.json(
+        { error: "El afiliado seleccionado no es válido o está inactivo." },
+        { status: 400 },
+      );
+    }
+
     const created = await createOrder({
       email: body.email,
       fullName,
@@ -43,6 +54,8 @@ export async function POST(req: NextRequest) {
       phone: body.phone,
       items: [{ packId: body.packId, quantity: body.quantity }],
       provider: "manual",
+      referralCode: affiliate?.code,
+      referralName: affiliate?.name,
     });
 
     const fulfilled = await fulfillOrder(created.order.id);
@@ -56,8 +69,12 @@ export async function POST(req: NextRequest) {
         emailSent: email.sent,
         emailReason: email.sent ? undefined : email.reason,
         message: email.sent
-          ? "Venta registrada, tickets emitidos y correo enviado."
-          : "Venta registrada y tickets emitidos, pero el correo debe reenviarse.",
+          ? affiliate
+            ? `Venta registrada, tickets emitidos, correo enviado y comisión asignada a ${affiliate.code}.`
+            : "Venta registrada, tickets emitidos y correo enviado."
+          : affiliate
+            ? `Venta registrada, comisión asignada a ${affiliate.code}, pero el correo debe reenviarse.`
+            : "Venta registrada y tickets emitidos, pero el correo debe reenviarse.",
       },
       { status: 201 },
     );

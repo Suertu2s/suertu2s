@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatClp } from "@/data/packs";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useAdmin } from "@/components/admin/AdminContext";
+import type { Affiliate } from "@/components/admin/types";
 import { Panel } from "@/components/admin/ui";
 
 type ManualSaleForm = {
@@ -13,6 +14,7 @@ type ManualSaleForm = {
   phone: string;
   packId: string;
   quantity: string;
+  affiliateId: string;
 };
 
 type ManualSaleResult = {
@@ -30,6 +32,7 @@ const INITIAL_FORM: ManualSaleForm = {
   phone: "",
   packId: "",
   quantity: "1",
+  affiliateId: "",
 };
 
 export default function AdminManualSalesPage() {
@@ -43,12 +46,53 @@ export default function AdminManualSalesPage() {
   } = useAdmin();
   const { packs, acceptsOrders, loaded } = useCatalog();
   const [form, setForm] = useState<ManualSaleForm>(INITIAL_FORM);
+  const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
+  const [affiliatesLoaded, setAffiliatesLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ManualSaleResult | null>(null);
+
+  useEffect(() => {
+    if (!authed || !canManualSales) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await adminFetch("/api/admin/affiliates");
+        const data = await readJson<{ affiliates?: Affiliate[] }>(
+          response,
+          "Cargar afiliados",
+        );
+        if (!cancelled) {
+          setAffiliates(
+            (data.affiliates || [])
+              .filter((affiliate) => affiliate.active)
+              .sort((a, b) => a.name.localeCompare(b.name, "es")),
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "No se pudieron cargar los afiliados",
+          );
+        }
+      } finally {
+        if (!cancelled) setAffiliatesLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authed, canManualSales, adminFetch, readJson, setError]);
 
   const selectedPack = useMemo(
     () => packs.find((pack) => pack.id === form.packId) || null,
     [packs, form.packId],
+  );
+  const selectedAffiliate = useMemo(
+    () =>
+      affiliates.find((affiliate) => affiliate.id === form.affiliateId) || null,
+    [affiliates, form.affiliateId],
   );
   const quantity = Math.max(1, Number(form.quantity) || 1);
   const total = selectedPack ? selectedPack.priceClp * quantity : 0;
@@ -69,6 +113,7 @@ export default function AdminManualSalesPage() {
         body: JSON.stringify({
           ...form,
           quantity,
+          affiliateId: form.affiliateId || undefined,
         }),
       });
       const data = await readJson<ManualSaleResult>(
@@ -221,6 +266,34 @@ export default function AdminManualSalesPage() {
               </label>
             </div>
 
+            <label className="block space-y-1">
+              <span className="text-[11px] text-brand-muted uppercase font-semibold">
+                Afiliado (opcional)
+              </span>
+              <select
+                value={form.affiliateId}
+                onChange={(event) =>
+                  updateField("affiliateId", event.target.value)
+                }
+                className="w-full bg-brand-bg border border-white/10 rounded-lg px-3 py-2 text-white"
+              >
+                <option value="">
+                  {affiliatesLoaded
+                    ? "Sin afiliado / venta directa"
+                    : "Cargando afiliados…"}
+                </option>
+                {affiliates.map((affiliate) => (
+                  <option key={affiliate.id} value={affiliate.id}>
+                    {affiliate.code} — {affiliate.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-brand-muted">
+                Si eliges un afiliado, la venta generará su comisión según el
+                modelo vigente.
+              </span>
+            </label>
+
             <button
               type="submit"
               disabled={busy || !acceptsOrders || !selectedPack}
@@ -250,6 +323,14 @@ export default function AdminManualSalesPage() {
                 {ticketCount || "—"}
               </strong>
             </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-brand-muted">Afiliado</span>
+              <strong className="text-white text-right">
+                {selectedAffiliate
+                  ? `${selectedAffiliate.code} — ${selectedAffiliate.name}`
+                  : "Sin asignar"}
+              </strong>
+            </div>
             <div className="flex justify-between gap-3 border-t border-white/10 pt-3">
               <span className="text-brand-muted">Total registrado</span>
               <strong className="text-brand-gold">
@@ -257,8 +338,8 @@ export default function AdminManualSalesPage() {
               </strong>
             </div>
             <p className="text-xs text-brand-muted m-0 pt-2">
-              La venta queda marcada como Venta POS y no genera comisión de
-              afiliados.
+              La venta queda marcada como Venta POS. Si asignas un afiliado, se
+              registrará su comisión automáticamente al emitir los tickets.
             </p>
           </div>
         </Panel>
